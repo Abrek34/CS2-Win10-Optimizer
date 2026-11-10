@@ -175,6 +175,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ## Sürüm
 
+- **v1.10.0** — "0 ve 1 tick kaldırma" (CPU affinity) efsanesi çürütüldü; 9900K'da uygulanmamalı.
 - **v1.9.0** — `cs2.exe` için kalıcı işlem önceliği (IFEO `PerfOptions`), `-SetCs2Priority` bayrağı eklendi.
 - **v1.8.0** — MMCSS `Scheduling Category=High` hatası düzeltildi (stutter üretiyordu), `MouseSensitivity=10` eklendi.
 - **v1.7.0** — DPI/sens/polling matrisi hesaplayıcısı, RawAccel çarpan denetim aracı ve 8K Hz polling analizi eklendi.

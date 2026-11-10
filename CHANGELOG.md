@@ -3,6 +3,23 @@
 Tüm önemli değişiklikler bu dosyada belgelenir.
 Format: [Semantic Versioning](https://semver.org/lang/tr/).
 
+## [v1.10.0] — 2026-11-10
+
+### Belgelenen
+- `RAPOR.md` bölüm 4.7: "0 ve 1 tick'i kaldır" (CPU affinity) efsanesi
+  çürütüldü ve **uygulanmaması** gerektiği belgelendi.
+  - Efsanenin kökeni **AMD Ryzen** (çift-CCD, 7950X/9950X): çapraz-CCD L3
+    gecikmesi. 9900K **tek CCD + paylaşılan L3** → sorun yok.
+  - 9900K'da CPU 0 ve CPU 1 = **iki ayrı fiziksel çekirdek** → kaldırmak
+    2 çekirdek kaybettirir; CS2 çekirdek sınırlı bir oyundur.
+  - Bitsum: affinity "band-aid" SMT kapatmanın **yerine geçmez**; Windows boş
+    yarıyı hâlâ kullanır → thread contention.
+  - Anti-cheat (VAC/FACEIT) affinity değişikliklerini engelleyebilir.
+  - Doğru alternatifler zaten projede: `CPMINCORES 100`, BIOS C-states off,
+    HT on/off A/B testi.
+- Yapma listesine eklendi.
+- `SISTEM-OZELLIKLERI.md` hedef tablosu güncellendi.
+
 ## [v1.9.0] — 2026-11-10
 
 ### Eklenen

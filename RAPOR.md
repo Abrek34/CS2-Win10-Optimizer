@@ -1,6 +1,6 @@
 # CS2 / Windows 10 / NVIDIA Optimizasyon Raporu
 
-> **Sürüm:** v1.9.0 — 10 Kasım 2026  
+> **Sürüm:** v1.10.0 — 10 Kasım 2026  
 > **Durum:** Çalışma dosyası. Uygulananlar, planlananlar ve ölçüm sonuçları bu dosyada takip edilecek.  
 > **Kapsam:** Windows 10 işletim sistemi, NVIDIA sürücü/Inspector katmanı, BIOS/firmware ve ölçüm metodolojisi.  
 > **Kapsam dışı:** CS2 oyun içi video/Crosshair/autoexec ayarları.
@@ -339,6 +339,54 @@ kullan** — launch option değil.
 > `IoPriority` yalnızca "Normal" ve altı için kullanılabilir; **oyun için
 > anlamlı değildir.** Öncelik değiştirmek yetmez — `cs2.exe` yeniden
 > başlatılmalıdır.
+
+### 4.7 "0 ve 1 tick'i kaldır" efsanesi (core affinity) — Intel 9900K için DEĞİLDİR
+
+> İnternette dolaşan klasik hile: *"Task Manager → CS2 → Sağ tık → CPU Affinity →
+> CPU 0 ve CPU 1'i işaretleme."* Bu **AMD Ryzen** içindir ve **Intel 9900K'da
+> uygulanmamalıdır.**
+
+**Efsanenin gerçek kökeni (AMD):**
+
+Ryzen 9 7950X/9950X gibi **çift-CCD** işlemcilerde her CCD'nin kendi L3
+önbelleği vardır. Windows iş yükü tek CCD'de toplarsa **çapraz-CCD iletişim
+gecikmesi** oluşur; iş yükü dağıtılmışsa core parking + thread migration
+maliyeti çıkar. Bazı Ryzen kullanıcıları "SMT kardeş thread'lerini 0 ve 1
+olarak ayır" hilesini bu yüzden denedi.
+
+**9900K'da neden geçerli değil?**
+
+1. **Tek CCD, tek L3.** 9900K 8 çekirdek/16 thread, **tek CCD** ve **paylaşılan
+   L3** cache'e sahip. Çapraz-CCD gecikmesi sorunu **yok**. "Yanlış CCD'de
+   çalıştırma" korkusu 9900K için geçersiz.
+2. **Sorunun kaynağı yok.** Core parking'in 9900K'da 1% low düşüşüne yol açtığı
+   gösterilmemiş. 9900K'da asıl fayda, hile değil **BIOS'ta C-states kapatmak**
+   (Katman 1) ve **core parking'in Windows tarafında kapatılması**
+   (`CPMINCORES 100`).
+3. **8 mantıksal işlemciyi 6'ya indirirsin.** 9900K'da CPU 0 ve CPU 1 = **iki
+   ayrı fiziksel çekirdeğin** ilk thread'leri (toplam 8 fiziksel çekirdek).
+   Kaldırırsan **2 fiziksel çekirdek** kaybedersin — CS2 tam da çekirdek
+   sınırlı bir oyun.
+4. **Windows scheduler hâlâ o boş yarıyı kullanır.** Bitsum'un kendi
+   açıklaması: *"using Process Lasso or other applications to 'band aid' a game
+   to every other core is **NOT the same thing** as natively disabling SMT.
+   Windows will still try to utilize the other half of the virtual core
+   creating thread contention."*
+5. **Anti-cheat engelleyebilir.** Bitsum: *"Anti-cheat protected games block
+   direct affinity changes."* CS2'de VAC/FACEIT varken affinity manipülasyonu
+   gereksiz risk.
+
+**9900K için doğru alternatifler (zaten projede):**
+
+| Doğru çözüm | Nerede |
+|---|---|
+| Core parking'i kapat (`CPMINCORES 100`) | `-SetProcessorPerformance` |
+| C-states'i BIOS'ta kapat | Katman 1 |
+| HT on/off A/B testi | `SISTEM-OZELLIKLERI.md` 2.1 |
+
+**Sonuç: Bu efsaneyi uygulamayın.** Ölçüm aracınız hazır; 4 tur ölçüm
+(8000/4000/2000/1000 Hz polling) ile **gerçek** farkı bulun. Affinity
+değişikliği ise sadece core sayısını düşürür.
 
 ## 5. Windows 10 — GPU, IRQ ve timer
 
@@ -918,6 +966,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Network-Tuni
 - ❌ Steam launch option `-high` — CS2'de stutter ve audio crackle yapıyor.
 - ❌ `IFEO PerfOptions CpuPriorityClass = 4` (Realtime) — sistemi kilitleyebilir.
 - ❌ `IFEO PerfOptions CpuPriorityClass = 3` (High) kalıcı — ses/DPC starve riski.
+- ❌ CS2 CPU affinity'den **CPU 0 ve CPU 1'i kaldırmak** — 9900K'da iki fiziksel çekirdek kaybedersin; efsane **AMD Ryzen** içindir (çift-CCD), 9900K tek CCD'dir ve sorunu yoktur.
 
 ### 16.1 İnternette önerilen ama projede reddedilen tweak'ler
 

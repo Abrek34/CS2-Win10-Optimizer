@@ -1,7 +1,7 @@
 # Sistem Özellikleri ve Ayar Eşleşmesi
 
 > **Proje:** CS2-Win10-Optimizer  
-> **Sürüm:** v1.9.0 — 10 Kasım 2026  
+> **Sürüm:** v1.10.0 — 10 Kasım 2026  
 > **Amaç:** Bu depodaki Windows/NVIDIA/BIOS ayarlarının hangi donanım ve sistem varsayımlarına göre seçildiğini belgelemek.
 
 Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını; **i9-9900K + Z390 + RTX 3070 + 64 GB DDR4** kombinasyonuna göre daraltıldığını gösterir. Farklı bir donanımda aynı değerler aynı sonucu vermeyebilir.
@@ -44,6 +44,7 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 | Core parking off | 9900K'da 16 thread'in tamamını kullanılabilir tutar | Masaüstünde genelde zaten kapalı; önce kontrol et |
 | `Win32PrioritySeparation=38` | 9900K gibi çok çekirdekli CPU'da foreground/background quantum dengesi | Win10 client default `2` zaten aynı mod; genelde no-op |
 | HT on/off A/B | 9900K'da 8C/16T vs 8C/8T; CS2'de çelişkili sonuçlar | Körlemesine kapatma; D2 benchmark şart |
+| **CPU affinity'den core 0/1 kaldırma** | ❌ **YAPMA** | Efsane **AMD Ryzen** (çift-CCD) içindir; 9900K tek CCD'dir, sorun yoktur ve **2 fiziksel çekirdek** kaybedersin |
 | `SystemResponsiveness=10` | MMCSS'in arka plan rezervini azaltır | 0 yapma; ses/network thread'lerini aç bırakabilir |
 
 ### 2.2 RAM / bellek
