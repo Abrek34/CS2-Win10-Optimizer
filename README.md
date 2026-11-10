@@ -19,8 +19,38 @@ Windows 10 + NVIDIA tarafında, **CS2 için oyun dışı** optimizasyonları bel
 | `CS2-Win10-WinUtil-Preferences.ps1` | WinUtil incelemesinden seçilen düşük riskli tercihleri uygular: activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click. Dry-run varsayılan; backup/revert destekler. |
 | `CS2-Win10-Background-Telemetry-Cleanup.ps1` | CS2 odaklı arka plan/telemetri temizliği: DiagTrack/dmwappushservice, CEIP/uyumluluk görevleri, AllowTelemetry, background apps, opsiyonel UWP kaldırma. Dry-run varsayılan; servis/görev/registry backup ve revert destekler. UWP kaldırma tam geri alınamaz. |
 | `CS2-Win10-Network-Tuning.ps1` | Düşük latency + paket kaybı yok: link power saving off, WoL off, adapter power management off, RSS on, TCP autotuning normal. Interrupt Moderation/RSC opsiyonel A/B. Flow Control **açık bırakılır** (paket kaybı koruması). Dry-run varsayılan; backup/revert destekler. |
+| `Get-Cs2Benchmark.ps1` | **Ölçüm motoru.** CapFrameX/PresentMon frame time, HWiNFO/nvidia-smi sensörleri, ağ jitter/paket kaybı ve NIC discard sayaçlarını toplar; `summary.md` + `summary.json` üretir. Hiçbir ayarı değiştirmez. |
+| `Get-Cs2GpuProfile.ps1` | RTX 3070 power limit yönetimi (nvidia-smi) + doğrulanmış NVIDIA Profile Inspector (.nip) profili üretimi. Revert destekler. |
+| `CS2Optimizer.psm1` | Ortak yardımcı modülü (registry, powercfg, NIC, backup/revert). Tüm scriptler bunu kullanır. |
 | `RAPOR.md` | Tüm ayarlar, gerekçeler, uygulama sırası, ölçüm protokolü, yapma listesi. |
 | `SISTEM-OZELLIKLERI.md` | Ayarların hangi donanım özelliklerine göre seçildiği. |
+| `CHANGELOG.md` | Sürüm sürüm değişiklikler. |
+| `tests/` | Pester testleri. |
+
+---
+
+## Önerilen iş akışı
+
+Projenin felsefesi: **tek değişiklik → ölçüm → karar.** Şu sırayla ilerle:
+
+```powershell
+# 1) Sistem envanteri (read-only)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2SystemReport.ps1
+
+# 2) Baseline ölçümü (CS2 açıkken çalıştır)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2Benchmark.ps1 -Label baseline
+
+# 3) Bir değişiklik uygula (dry-run önce!)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1 -Apply -SetProcessorPerformance
+
+# 4) Tekrar ölç ve karşılaştır
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2Benchmark.ps1 -Label after-processor-perf
+
+# 5) Fark yoksa geri al
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1 -Revert
+```
+
+> Ölçüm karşılaştırmasında **ortalama FPS değil 1% low ve frametime p99** dikkat et.
 
 ---
 
@@ -131,13 +161,34 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ## Sürüm
 
-- **v1.0.0** — İlk sürüm: Windows baseline scriptleri, sistem özellikleri dosyası ve detaylı rapor.
-- **v1.1.0** — `Get-Cs2SystemReport.ps1` sistem envanteri/rapor üreticisi eklendi.
-- **v1.2.0** — GameBoost-derived opsiyonel tweak'ler, WinUtil-derived düşük riskli tercihler ve background/telemetry cleanup scripti eklendi.
+- **v1.4.0** — Ölçüm motoru (`Get-Cs2Benchmark.ps1`), GPU profili/power limit (`Get-Cs2GpuProfile.ps1`), ortak modül (`CS2Optimizer.psm1`), Pester testleri ve CI eklendi. Flow Control mantık hatası, powercfg alias hatası ve powercfg revert eksikliği düzeltildi.
 - **v1.3.0** — Ağ tuning scripti (düşük latency + paket kaybı yok), input lag ölçüm zinciri ve performans/latency opsiyonları eklendi.
+- **v1.2.0** — GameBoost-derived opsiyonel tweak'ler, WinUtil-derived düşük riskli tercihler ve background/telemetry cleanup scripti eklendi.
+- **v1.1.0** — `Get-Cs2SystemReport.ps1` sistem envanteri/rapor üreticisi eklendi.
+- **v1.0.0** — İlk sürüm: Windows baseline scriptleri, sistem özellikleri dosyası ve detaylı rapor.
+
+Ayrıntı: [`CHANGELOG.md`](CHANGELOG.md)
+
+---
+
+## Geliştirme
+
+```powershell
+# Testler
+Invoke-Pester ./tests
+
+# Sözdizimi denetimi
+Get-ChildItem *.ps1 | ForEach-Object {
+    $e = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$e)
+    if ($e) { $e } else { "OK $($_.Name)" }
+}
+```
+
+Her push'ta CI (sözdizimi + PSScriptAnalyzer + Pester + dry-run) çalışır: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
 ---
 
 ## Lisans
 
-Bu depo için henüz bir lisans dosyası eklenmedi. Kullanmadan önce kendi risk değerlendirmenizi yapın.
+MIT — [`LICENSE`](LICENSE). Kullanmadan önce kendi risk değerlendirmenizi yapın; her ayar donanım ve sürüme göre farklı etki yapar.

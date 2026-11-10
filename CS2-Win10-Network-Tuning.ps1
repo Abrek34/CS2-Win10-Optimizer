@@ -69,19 +69,9 @@ $script:Desktop   = [Environment]::GetFolderPath('Desktop')
 $script:LogPath   = Join-Path $script:Desktop "CS2-NetworkTuning-$script:Stamp.log"
 $script:BackupDir = Join-Path $script:Desktop "CS2-NetworkTuning-Backup-$script:Stamp"
 
+Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+
 Start-Transcript -Path $script:LogPath -Force | Out-Null
-
-function Write-Step { param([string]$Message) Write-Host "`n=== $Message ===" -ForegroundColor Cyan }
-function Write-Info { param([string]$Message) Write-Host "[i] $Message" -ForegroundColor Gray }
-function Write-Ok   { param([string]$Message) Write-Host "[+] $Message" -ForegroundColor Green }
-function Write-Warn { param([string]$Message) Write-Host "[!] $Message" -ForegroundColor Yellow }
-function Write-Err  { param([string]$Message) Write-Host "[-] $Message" -ForegroundColor Red }
-
-function Get-LatestBackup {
-    Get-ChildItem -Path $script:Desktop -Directory -Filter 'CS2-NetworkTuning-Backup-*' -ErrorAction SilentlyContinue |
-        Sort-Object Name -Descending |
-        Select-Object -First 1
-}
 
 function Get-TargetAdapter {
     param([string]$Explicit)
@@ -141,7 +131,7 @@ function Set-NicPropertyByKeyword {
 if ($Revert) {
     Write-Step 'Revert: latest network tuning backup'
 
-    $backup = Get-LatestBackup
+    $backup = Get-LatestBackup -Pattern 'CS2-NetworkTuning-Backup-*'
     if (-not $backup) {
         Write-Err 'No CS2-NetworkTuning backup folder found on Desktop.'
         Stop-Transcript | Out-Null
@@ -150,16 +140,8 @@ if ($Revert) {
 
     Write-Info "Using backup: $($backup.FullName)"
 
-    $nicFile = Join-Path $backup.FullName 'nic-backup.json'
-    if (Test-Path $nicFile) {
-        $nic = Get-Content $nicFile -Raw | ConvertFrom-Json
-        foreach ($item in @($nic)) {
-            if ($item.Name -and $item.DisplayName) {
-                Set-NetAdapterAdvancedProperty -Name $item.Name -DisplayName $item.DisplayName -DisplayValue $item.DisplayValue -ErrorAction SilentlyContinue
-            }
-        }
-        Write-Ok 'NIC advanced properties restored.'
-    }
+    $nicRestored = Restore-NicProperties -BackupDir $backup.FullName
+    if ($nicRestored -gt 0) { Write-Ok "Restored $nicRestored NIC property(ies)." }
 
     Write-Ok 'Revert completed. Reboot recommended.'
     Stop-Transcript | Out-Null
@@ -186,7 +168,7 @@ if (-not $Apply) {
     Write-Info "Description : $($adapter.InterfaceDescription)"
     Write-Info "Status     : $($adapter.Status) / $($adapter.LinkSpeed)"
 
-    $props = @(Get-NetAdapterAdvancedProperty -Name $adapter.Name -ErrorAction SilentlyContinue)
+    $props = Get-NicProperties -AdapterName $adapter.Name
     Write-Step 'Current advanced properties'
     $props |
         Sort-Object DisplayName |
@@ -343,7 +325,7 @@ try {
 }
 
 Write-Step 'Current advanced properties'
-$propsAfter = @(Get-NetAdapterAdvancedProperty -Name $adapter.Name -ErrorAction SilentlyContinue)
+$propsAfter = Get-NicProperties -AdapterName $adapter.Name
 $propsAfter |
     Sort-Object DisplayName |
     Select-Object DisplayName, DisplayValue, RegistryKeyword |

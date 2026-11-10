@@ -42,12 +42,15 @@ $desktop = [Environment]::GetFolderPath('Desktop')
 $backup  = Join-Path $desktop "CS2-Optimize-Backup-$stamp"
 $log     = Join-Path $desktop "CS2-Optimize-$stamp.log"
 
+Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+
 Start-Transcript -Path $log -Force | Out-Null
 
-function Say  { param($m) Write-Host "[i] $m" -ForegroundColor Gray }
-function Good { param($m) Write-Host "[+] $m" -ForegroundColor Green }
-function Warn { param($m) Write-Host "[!] $m" -ForegroundColor Yellow }
-function Bad  { param($m) Write-Host "[-] $m" -ForegroundColor Red }
+# Cikti yardimcilari ortak modulden gelir.
+function Say  { param($m) Write-Info $m }
+function Good { param($m) Write-Ok $m }
+function Warn { param($m) Write-Warn $m }
+function Bad  { param($m) Write-Err $m }
 
 function Set-Dword {
     param([string]$Path, [string]$Name, [int]$Value)
@@ -59,12 +62,6 @@ function Set-String {
     param([string]$Path, [string]$Name, [string]$Value)
     if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
     New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType String -Force | Out-Null
-}
-
-function Backup-Key {
-    param([string]$Key)
-    $safe = ($Key -replace '[:\\]', '_')
-    & reg.exe export $Key (Join-Path $backup "$safe.reg") /y 2>$null | Out-Null
 }
 
 function Find-CS2 {
@@ -144,7 +141,7 @@ $keys = @(
     'HKCU\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers',
     'HKCU\Software\Microsoft\DirectX\UserGpuPreferences'
 )
-foreach ($k in $keys) { Backup-Key $k }
+foreach ($k in $keys) { Backup-RegKey -Key $k -BackupDir $backup | Out-Null }
 Good "Registry backup: $backup"
 
 # Power plan

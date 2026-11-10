@@ -161,71 +161,9 @@ $script:Desktop     = [Environment]::GetFolderPath('Desktop')
 $script:LogPath     = Join-Path $script:Desktop "CS2-Optimize-$script:Stamp.log"
 $script:BackupDir   = Join-Path $script:Desktop "CS2-Optimize-Backup-$script:Stamp"
 
+Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+
 Start-Transcript -Path $script:LogPath -Force | Out-Null
-
-function Write-Step { param([string]$Message) Write-Host "`n=== $Message ===" -ForegroundColor Cyan }
-function Write-Info { param([string]$Message) Write-Host "[i] $Message" -ForegroundColor Gray }
-function Write-Ok   { param([string]$Message) Write-Host "[+] $Message" -ForegroundColor Green }
-function Write-Warn { param([string]$Message) Write-Host "[!] $Message" -ForegroundColor Yellow }
-function Write-Err  { param([string]$Message) Write-Host "[-] $Message" -ForegroundColor Red }
-
-function Set-RegDword {
-    param([string]$Path, [string]$Name, [int]$Value)
-    if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
-    New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType DWord -Force | Out-Null
-}
-
-function Set-RegString {
-    param([string]$Path, [string]$Name, [string]$Value)
-    if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
-    New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType String -Force | Out-Null
-}
-
-function Backup-RegKey {
-    param([string]$Key)
-    $safe = ($Key -replace '[:\\]', '_')
-    $file = Join-Path $script:BackupDir "$safe.reg"
-    & reg.exe export $Key $file /y 2>$null | Out-Null
-}
-
-function Get-PowerCfgValue {
-    param([string]$Alias)
-    # powercfg çok kelimeli alias'ı (örn. "SUB_PROCESSOR PROCTHROTTLEMIN")
-    # TEK argüman olarak kabul etmez; parçalarına ayırıp geçiyoruz.
-    $parts = @($Alias -split '\s+' | Where-Object { $_ })
-    if ($parts.Count -eq 0) { return $null }
-    $out = & powercfg.exe /query SCHEME_CURRENT @parts 2>$null
-    if (-not $out) { return $null }
-    $text = ($out -join "`n")
-    $m = [regex]::Match($text, 'Current AC Power Setting Index:\s*(0x[0-9a-fA-F]+)')
-    if ($m.Success) { return [Convert]::ToInt32($m.Groups[1].Value, 16) }
-    return $null
-}
-
-function Backup-PowerCfgValue {
-    param([string]$Alias)
-    $v = Get-PowerCfgValue -Alias $Alias
-    if ($null -eq $v) {
-        Write-Warn "Could not read current value for $Alias; it will not be restored individually."
-        return
-    }
-    $script:PowerCfgBackup.Add([ordered]@{ Alias = $Alias; Value = $v })
-    Write-Info "Saved $Alias = $v"
-}
-
-function Save-PowerCfgBackup {
-    if ($script:PowerCfgBackup.Count -eq 0) { return }
-    $script:PowerCfgBackup | ConvertTo-Json -Depth 4 |
-        Set-Content -Path (Join-Path $script:BackupDir 'powercfg-backup.json') -Encoding UTF8
-    Write-Ok "Power setting values saved: powercfg-backup.json"
-}
-
-function Set-PowerCfgValue {
-    param([string]$Alias, [int]$Value)
-    $parts = @($Alias -split '\s+' | Where-Object { $_ })
-    & powercfg.exe /setacvalueindex SCHEME_CURRENT @parts $Value 2>$null | Out-Null
-    Write-Ok "$Alias = $Value"
-}
 
 function Find-Cs2Path {
     param([string]$Explicit)
@@ -260,19 +198,13 @@ function Find-Cs2Path {
     return $null
 }
 
-function Get-LatestBackup {
-    Get-ChildItem -Path $script:Desktop -Directory -Filter 'CS2-Optimize-Backup-*' -ErrorAction SilentlyContinue |
-        Sort-Object Name -Descending |
-        Select-Object -First 1
-}
-
 # ---------------------------------------------------------------------------
 # Revert
 # ---------------------------------------------------------------------------
 if ($Revert) {
     Write-Step 'Revert: latest backup'
 
-    $backup = Get-LatestBackup
+    $backup = Get-LatestBackup -Pattern 'CS2-Optimize-Backup-*'
     if (-not $backup) {
         Write-Err 'No CS2-Optimize backup folder found on Desktop.'
         Stop-Transcript | Out-Null
@@ -281,10 +213,8 @@ if ($Revert) {
 
     Write-Info "Using backup: $($backup.FullName)"
 
-    Get-ChildItem -Path $backup.FullName -Filter '*.reg' -ErrorAction SilentlyContinue | ForEach-Object {
-        Write-Info "Importing $($_.Name)"
-        & reg.exe import $_.FullName 2>$null | Out-Null
-    }
+    $restored = Restore-RegBackups -BackupDir $backup.FullName
+    Write-Ok "Restored $restored registry key(s)."
 
     $powerFile = Join-Path $backup.FullName 'power-scheme.txt'
     if (Test-Path $powerFile) {
@@ -412,7 +342,7 @@ $keys = @(
     'HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize',
     'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize'
 )
-foreach ($k in $keys) { Backup-RegKey $k }
+foreach ($k in $keys) { Backup-RegKey -Key $k -BackupDir $script:BackupDir | Out-Null }
 
 $currentScheme = (& powercfg.exe /getactivescheme) -join ' '
 $schemeGuid = ([regex]::Match($currentScheme, '([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})')).Value
@@ -434,23 +364,21 @@ Write-Ok 'High Performance, PCIe ASPM off, USB selective suspend off.'
 # ---------------------------------------------------------------------------
 # Processor performance / latency (optional)
 # ---------------------------------------------------------------------------
-$script:PowerCfgBackup = New-Object System.Collections.Generic.List[object]
-
 if ($SetProcessorPerformance) {
     Write-Step 'Processor performance (min/max 100%, EPP 0, aggressive boost)'
-    Backup-PowerCfgValue 'SUB_PROCESSOR PROCTHROTTLEMIN'
-    Backup-PowerCfgValue 'SUB_PROCESSOR PROCTHROTTLEMAX'
-    Backup-PowerCfgValue 'SUB_PROCESSOR CPMINCORES'
-    Backup-PowerCfgValue 'SUB_PROCESSOR CPMAXCORES'
-    Backup-PowerCfgValue 'SUB_PROCESSOR PERFEPP'
-    Backup-PowerCfgValue 'SUB_PROCESSOR PERFBOOSTMODE'
+    Backup-PowerCfgValue -Alias 'SUB_PROCESSOR PROCTHROTTLEMIN'
+    Backup-PowerCfgValue -Alias 'SUB_PROCESSOR PROCTHROTTLEMAX'
+    Backup-PowerCfgValue -Alias 'SUB_PROCESSOR CPMINCORES'
+    Backup-PowerCfgValue -Alias 'SUB_PROCESSOR CPMAXCORES'
+    Backup-PowerCfgValue -Alias 'SUB_PROCESSOR PERFEPP'
+    Backup-PowerCfgValue -Alias 'SUB_PROCESSOR PERFBOOSTMODE'
 
-    Set-PowerCfgValue 'SUB_PROCESSOR PROCTHROTTLEMIN' 100
-    Set-PowerCfgValue 'SUB_PROCESSOR PROCTHROTTLEMAX' 100
-    Set-PowerCfgValue 'SUB_PROCESSOR CPMINCORES' 100
-    Set-PowerCfgValue 'SUB_PROCESSOR CPMAXCORES' 100
-    Set-PowerCfgValue 'SUB_PROCESSOR PERFEPP' 0
-    Set-PowerCfgValue 'SUB_PROCESSOR PERFBOOSTMODE' 2
+    Set-PowerCfgValue -Alias 'SUB_PROCESSOR PROCTHROTTLEMIN' 100
+    Set-PowerCfgValue -Alias 'SUB_PROCESSOR PROCTHROTTLEMAX' 100
+    Set-PowerCfgValue -Alias 'SUB_PROCESSOR CPMINCORES' 100
+    Set-PowerCfgValue -Alias 'SUB_PROCESSOR CPMAXCORES' 100
+    Set-PowerCfgValue -Alias 'SUB_PROCESSOR PERFEPP' 0
+    Set-PowerCfgValue -Alias 'SUB_PROCESSOR PERFBOOSTMODE' 2
     Write-Warn 'Idle power draw and temperature rise. Verify cooling with HWiNFO.'
 }
 
@@ -459,19 +387,19 @@ if ($DisableIdleStates) {
     if (-not $DisableFastStartup) {
         Write-Warn 'Use only if BIOS C-states are NOT already disabled; do not combine both.'
     }
-    Backup-PowerCfgValue 'SUB_PROCESSOR IDLEDISABLE'
-    Set-PowerCfgValue 'SUB_PROCESSOR IDLEDISABLE' 1
+    Backup-PowerCfgValue -Alias 'SUB_PROCESSOR IDLEDISABLE'
+    Set-PowerCfgValue -Alias 'SUB_PROCESSOR IDLEDISABLE' 1
 }
 
 if ($DisableDiskIdle) {
     Write-Step 'Disk idle timeout'
-    Backup-PowerCfgValue 'SUB_DISK DISKIDLE'
-    Set-PowerCfgValue 'SUB_DISK DISKIDLE' 0
+    Backup-PowerCfgValue -Alias 'SUB_DISK DISKIDLE'
+    Set-PowerCfgValue -Alias 'SUB_DISK DISKIDLE' 0
     Write-Ok 'Disk idle timeout = 0 (never sleeps).'
 }
 
 & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
-Save-PowerCfgBackup
+Save-PowerCfgBackup -BackupDir $script:BackupDir
 
 # ---------------------------------------------------------------------------
 # Scheduler / MMCSS / power throttling (optional)

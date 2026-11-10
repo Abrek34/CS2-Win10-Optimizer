@@ -106,52 +106,9 @@ $script:Desktop   = [Environment]::GetFolderPath('Desktop')
 $script:LogPath   = Join-Path $script:Desktop "CS2-WinUtil-Preferences-$script:Stamp.log"
 $script:BackupDir = Join-Path $script:Desktop "CS2-WinUtil-Preferences-Backup-$script:Stamp"
 
+Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+
 Start-Transcript -Path $script:LogPath -Force | Out-Null
-
-function Write-Step { param([string]$Message) Write-Host "`n=== $Message ===" -ForegroundColor Cyan }
-function Write-Info { param([string]$Message) Write-Host "[i] $Message" -ForegroundColor Gray }
-function Write-Ok   { param([string]$Message) Write-Host "[+] $Message" -ForegroundColor Green }
-function Write-Warn { param([string]$Message) Write-Host "[!] $Message" -ForegroundColor Yellow }
-function Write-Err  { param([string]$Message) Write-Host "[-] $Message" -ForegroundColor Red }
-
-function Set-RegDword {
-    param([string]$Path, [string]$Name, [int]$Value)
-    if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
-    New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType DWord -Force | Out-Null
-}
-
-function Set-RegString {
-    param([string]$Path, [string]$Name, [string]$Value)
-    if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
-    New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType String -Force | Out-Null
-}
-
-function Backup-RegKey {
-    param([string]$Key)
-    $safe = ($Key -replace '[:\\]', '_')
-    $file = Join-Path $script:BackupDir "$safe.reg"
-    & reg.exe export $Key $file /y 2>$null | Out-Null
-}
-
-function Get-LatestBackup {
-    Get-ChildItem -Path $script:Desktop -Directory -Filter 'CS2-WinUtil-Preferences-Backup-*' -ErrorAction SilentlyContinue |
-        Sort-Object Name -Descending |
-        Select-Object -First 1
-}
-
-function Save-Flag {
-    param([string]$Name, [bool]$Value)
-    $flag = [ordered]@{ Name = $Name; Value = $Value }
-    $path = Join-Path $script:BackupDir "$Name.flag.json"
-    $flag | ConvertTo-Json -Depth 3 | Set-Content -Path $path -Encoding UTF8
-}
-
-function Get-Flag {
-    param([string]$Name)
-    $path = Join-Path $script:BackupDir "$Name.flag.json"
-    if (-not (Test-Path $path)) { return $null }
-    try { return (Get-Content $path -Raw | ConvertFrom-Json) } catch { return $null }
-}
 
 $selected = @(
     $DisableActivityHistory,
@@ -176,7 +133,7 @@ $hasSelection = ($selected -contains $true)
 if ($Revert) {
     Write-Step 'Revert: latest WinUtil preferences backup'
 
-    $backup = Get-LatestBackup
+    $backup = Get-LatestBackup -Pattern 'CS2-WinUtil-Preferences-Backup-*'
     if (-not $backup) {
         Write-Err 'No CS2-WinUtil-Preferences backup folder found on Desktop.'
         Stop-Transcript | Out-Null
@@ -191,19 +148,19 @@ if ($Revert) {
         & reg.exe import $_.FullName 2>$null | Out-Null
     }
 
-    $teredoFlag = Get-Flag -Name 'Teredo'
+    $teredoFlag = Get-Flag -Name 'Teredo' -BackupDir $script:BackupDir
     if ($teredoFlag -and $teredoFlag.Value) {
         & netsh.exe interface teredo set state default 2>$null | Out-Null
         Write-Ok 'Teredo restored to default.'
     }
 
-    $reservedFlag = Get-Flag -Name 'ReservedStorage'
+    $reservedFlag = Get-Flag -Name 'ReservedStorage' -BackupDir $script:BackupDir
     if ($reservedFlag -and $reservedFlag.Value) {
         & DISM.exe /Online /Set-ReservedStorageState /State:Enabled 2>$null | Out-Null
         Write-Ok 'Reserved Storage re-enabled.'
     }
 
-    $explorerFlag = Get-Flag -Name 'ExplorerFolderDiscovery'
+    $explorerFlag = Get-Flag -Name 'ExplorerFolderDiscovery' -BackupDir $script:BackupDir
     if ($explorerFlag -and $explorerFlag.Value) {
         Remove-Item -Path 'HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags' -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path 'HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\BagMRU' -Recurse -Force -ErrorAction SilentlyContinue
@@ -274,7 +231,7 @@ $keys = @(
     'HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags\AllFolders\Shell',
     'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings'
 )
-foreach ($k in $keys) { Backup-RegKey $k }
+foreach ($k in $keys) { Backup-RegKey -Key $k -BackupDir $script:BackupDir | Out-Null }
 
 # Activity History
 if ($DisableActivityHistory) {
@@ -343,7 +300,7 @@ if ($DisableTeredo -or $PreferIpv4) {
     Set-RegDword 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters' 'DisabledComponents' $disabledComponents
     if ($DisableTeredo) {
         & netsh.exe interface teredo set state disabled 2>$null | Out-Null
-        Save-Flag -Name 'Teredo' -Value $true
+        Save-Flag -Name 'Teredo' -Value $true -BackupDir $script:BackupDir
         Write-Ok 'Teredo disabled.'
     }
     if ($PreferIpv4) {
@@ -355,7 +312,7 @@ if ($DisableTeredo -or $PreferIpv4) {
 if ($DisableReservedStorage) {
     Write-Step 'Reserved Storage'
     & DISM.exe /Online /Set-ReservedStorageState /State:Disabled 2>$null | Out-Null
-    Save-Flag -Name 'ReservedStorage' -Value $true
+    Save-Flag -Name 'ReservedStorage' -Value $true -BackupDir $script:BackupDir
     Write-Ok 'Reserved Storage disabled. Re-enable before major Windows updates.'
 }
 
@@ -367,7 +324,7 @@ if ($DisableExplorerFolderDiscovery) {
     $allFolders = 'HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\Bags\AllFolders\Shell'
     if (-not (Test-Path $allFolders)) { New-Item -Path $allFolders -Force | Out-Null }
     Set-RegString $allFolders 'FolderType' 'NotSpecified'
-    Save-Flag -Name 'ExplorerFolderDiscovery' -Value $true
+    Save-Flag -Name 'ExplorerFolderDiscovery' -Value $true -BackupDir $script:BackupDir
     Write-Ok 'File Explorer automatic folder discovery disabled. Sign out/reboot recommended.'
 }
 

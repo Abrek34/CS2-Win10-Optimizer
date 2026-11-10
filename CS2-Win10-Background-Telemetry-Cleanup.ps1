@@ -76,63 +76,9 @@ $script:Desktop   = [Environment]::GetFolderPath('Desktop')
 $script:LogPath   = Join-Path $script:Desktop "CS2-BackgroundTelemetryCleanup-$script:Stamp.log"
 $script:BackupDir = Join-Path $script:Desktop "CS2-BackgroundTelemetryCleanup-Backup-$script:Stamp"
 
+Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+
 Start-Transcript -Path $script:LogPath -Force | Out-Null
-
-function Write-Step { param([string]$Message) Write-Host "`n=== $Message ===" -ForegroundColor Cyan }
-function Write-Info { param([string]$Message) Write-Host "[i] $Message" -ForegroundColor Gray }
-function Write-Ok   { param([string]$Message) Write-Host "[+] $Message" -ForegroundColor Green }
-function Write-Warn { param([string]$Message) Write-Host "[!] $Message" -ForegroundColor Yellow }
-function Write-Err  { param([string]$Message) Write-Host "[-] $Message" -ForegroundColor Red }
-
-function Set-RegDword {
-    param([string]$Path, [string]$Name, [int]$Value)
-    if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
-    New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType DWord -Force | Out-Null
-}
-
-function Backup-RegKey {
-    param([string]$Key)
-    $safe = ($Key -replace '[:\\]', '_')
-    $file = Join-Path $script:BackupDir "$safe.reg"
-    & reg.exe export $Key $file /y 2>$null | Out-Null
-}
-
-function Get-LatestBackup {
-    Get-ChildItem -Path $script:Desktop -Directory -Filter 'CS2-BackgroundTelemetryCleanup-Backup-*' -ErrorAction SilentlyContinue |
-        Sort-Object Name -Descending |
-        Select-Object -First 1
-}
-
-function Save-ServiceState {
-    param([string]$Name)
-    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
-    if (-not $svc) { return $null }
-    $state = [ordered]@{
-        Name      = $svc.Name
-        StartType = [string]$svc.StartType
-        Status    = [string]$svc.Status
-    }
-    $path = Join-Path $script:BackupDir "service-$Name.json"
-    $state | ConvertTo-Json -Depth 3 | Set-Content -Path $path -Encoding UTF8
-    return $state
-}
-
-function Restore-ServiceState {
-    param([string]$Name)
-    $path = Join-Path $script:BackupDir "service-$Name.json"
-    if (-not (Test-Path $path)) { return }
-    try {
-        $state = Get-Content $path -Raw | ConvertFrom-Json
-        if ($state.StartType) {
-            Set-Service -Name $Name -StartupType $state.StartType -ErrorAction SilentlyContinue
-        }
-        if ($state.Status -eq 'Running') {
-            Start-Service -Name $Name -ErrorAction SilentlyContinue
-        }
-    } catch {
-        Write-Warn "Service restore failed for $Name : $($_.Exception.Message)"
-    }
-}
 
 function Disable-ServiceSafe {
     param([string]$Name)
@@ -141,7 +87,7 @@ function Disable-ServiceSafe {
         Write-Info "$Name not found; skipped."
         return
     }
-    Save-ServiceState -Name $Name | Out-Null
+    Save-ServiceState -Name $Name -BackupDir $script:BackupDir | Out-Null
     try {
         Stop-Service -Name $Name -Force -ErrorAction Stop
     } catch {
@@ -155,21 +101,6 @@ function Disable-ServiceSafe {
     }
 }
 
-function Save-TaskState {
-    param([string]$TaskPath, [string]$TaskName)
-    $task = Get-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue
-    if (-not $task) { return $null }
-    $state = [ordered]@{
-        TaskPath = $TaskPath
-        TaskName = $TaskName
-        State    = [string]$task.State
-    }
-    $safe = ($TaskPath + $TaskName -replace '[\\/:*?"<>|]', '_')
-    $path = Join-Path $script:BackupDir "task-$safe.json"
-    $state | ConvertTo-Json -Depth 3 | Set-Content -Path $path -Encoding UTF8
-    return $state
-}
-
 function Disable-TaskSafe {
     param([string]$TaskPath, [string]$TaskName)
     $task = Get-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue
@@ -177,27 +108,12 @@ function Disable-TaskSafe {
         Write-Info "Task not found: $TaskPath$TaskName"
         return
     }
-    Save-TaskState -TaskPath $TaskPath -TaskName $TaskName | Out-Null
+    Save-TaskState -TaskPath $TaskPath -TaskName $TaskName -BackupDir $script:BackupDir | Out-Null
     try {
         Disable-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction Stop | Out-Null
         Write-Ok "Disabled task: $TaskPath$TaskName"
     } catch {
         Write-Warn "Could not disable task $TaskPath$TaskName : $($_.Exception.Message)"
-    }
-}
-
-function Restore-TaskState {
-    param([string]$TaskPath, [string]$TaskName)
-    $safe = ($TaskPath + $TaskName -replace '[\\/:*?"<>|]', '_')
-    $path = Join-Path $script:BackupDir "task-$safe.json"
-    if (-not (Test-Path $path)) { return }
-    try {
-        $state = Get-Content $path -Raw | ConvertFrom-Json
-        if ($state.State -eq 'Ready' -or $state.State -eq 'Running') {
-            Enable-ScheduledTask -TaskPath $state.TaskPath -TaskName $state.TaskName -ErrorAction SilentlyContinue | Out-Null
-        }
-    } catch {
-        Write-Warn "Task restore failed for $TaskPath$TaskName : $($_.Exception.Message)"
     }
 }
 
@@ -207,7 +123,7 @@ function Restore-TaskState {
 if ($Revert) {
     Write-Step 'Revert: latest cleanup backup'
 
-    $backup = Get-LatestBackup
+    $backup = Get-LatestBackup -Pattern 'CS2-BackgroundTelemetryCleanup-Backup-*'
     if (-not $backup) {
         Write-Err 'No CS2-BackgroundTelemetryCleanup backup folder found on Desktop.'
         Stop-Transcript | Out-Null
@@ -228,7 +144,7 @@ if ($Revert) {
         try {
             $state = Get-Content $_.FullName -Raw | ConvertFrom-Json
             if ($state.Name) {
-                Restore-ServiceState -Name $state.Name
+                Restore-ServiceState -Name $state.Name -BackupDir $backup.FullName
                 Write-Ok "Restored service: $($state.Name)"
             }
         } catch {
@@ -241,7 +157,7 @@ if ($Revert) {
         try {
             $state = Get-Content $_.FullName -Raw | ConvertFrom-Json
             if ($state.TaskPath -and $state.TaskName) {
-                Restore-TaskState -TaskPath $state.TaskPath -TaskName $state.TaskName
+                Restore-TaskState -TaskPath $state.TaskPath -TaskName $state.TaskName -BackupDir $backup.FullName
             }
         } catch {
             Write-Warn "Could not restore task from $($_.Name): $($_.Exception.Message)"
@@ -360,7 +276,7 @@ $keys = @(
     'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection',
     'HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications'
 )
-foreach ($k in $keys) { Backup-RegKey $k }
+foreach ($k in $keys) { Backup-RegKey -Key $k -BackupDir $script:BackupDir | Out-Null }
 
 # ---------------------------------------------------------------------------
 # Telemetry

@@ -37,28 +37,7 @@ param(
 $ErrorActionPreference = 'Continue'
 $script:Stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 
-function Write-Info { param([string]$Message) Write-Host "[i] $Message" -ForegroundColor Gray }
-function Write-Ok   { param([string]$Message) Write-Host "[+] $Message" -ForegroundColor Green }
-function Write-Warn { param([string]$Message) Write-Host "[!] $Message" -ForegroundColor Yellow }
-
-function Format-Bytes {
-    param([Nullable[double]]$Bytes)
-    if ($null -eq $Bytes -or $Bytes -le 0) { return 'N/A' }
-    $units = @('B', 'KB', 'MB', 'GB', 'TB')
-    $i = 0
-    $v = [double]$Bytes
-    while ($v -ge 1024 -and $i -lt ($units.Count - 1)) {
-        $v /= 1024
-        $i++
-    }
-    return ('{0:N2} {1}' -f $v, $units[$i])
-}
-
-function Format-Date {
-    param($Value)
-    if ($null -eq $Value) { return 'N/A' }
-    try { return ([datetime]$Value).ToString('yyyy-MM-dd HH:mm:ss') } catch { return [string]$Value }
-}
+Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
 
 function Get-RegValue {
     param([string]$Path, [string]$Name)
@@ -67,19 +46,6 @@ function Get-RegValue {
         return $item.$Name
     } catch {
         return $null
-    }
-}
-
-function ConvertFrom-MonitorId {
-    param($Value)
-    if ($null -eq $Value) { return 'N/A' }
-    try {
-        $chars = @($Value) | Where-Object { $_ -ne 0 } | ForEach-Object { [char]$_ }
-        $text = (-join $chars).Trim()
-        if ($text) { return $text }
-        return 'N/A'
-    } catch {
-        return 'N/A'
     }
 }
 

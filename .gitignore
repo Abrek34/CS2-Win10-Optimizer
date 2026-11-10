@@ -2,6 +2,11 @@
 *.log
 CS2-Optimize-Backup-*/
 CS2-Optimize-Backup-*
+CS2-NetworkTuning-Backup-*/
+CS2-WinUtil-Preferences-Backup-*/
+CS2-BackgroundTelemetryCleanup-Backup-*/
+CS2-Benchmark-*/
+CS2-GpuProfile-*-state.json
 Transcript*.txt
 
 # Release paketleri
@@ -17,3 +22,7 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# Pester çıktıları
+tests/TestResults/
+*.trx
