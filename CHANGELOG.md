@@ -3,6 +3,73 @@
 Tüm önemli değişiklikler bu dosyada belgelenir.
 Format: [Semantic Versioning](https://semver.org/lang/tr/).
 
+## [v1.14.0] — 2026-11-10
+
+### Düzeltilen (ölçüm sonucunu bozan gerçek hatalar)
+Bu sürüm, proje **ilk kez gerçek Windows'ta çalıştırılmadan önce** yapılan
+kod denetiminde bulunan hataları giderir. Hepsi ölçümü doğrudan bozuyordu.
+
+1. **PresentMon CSV kolon uyumsuzluğu** — PresentMon 2.x varsayılan metriklerinde
+   `FrameTime` kolonu **yoktur** (`MsBetweenPresents` vardır). Eski kod yalnızca
+   `$r.FrameTime` okuduğu için bugün indirilen PresentMon ile **0 frame** parse
+   ediliyor, ölçüm sessizce boş kalıyordu.
+   → `Get-FrameTimeStats` ile sürüm-bağımsız kolon seçimi.
+2. **Ondalık ayracı (Türkçe locale)** — `[double]::TryParse("2.780", [ref]$v)`
+   CurrentCulture kullanır; tr-TR'de `2780` üretir (1000× hatalı).
+   → Tüm ayrıştırmalar `InvariantCulture`.
+3. **ping çıktısı yerelleştirmesi** — `time=14 ms` / `süre=14ms` ve
+   `(0% loss)` / `(0% kayıp)` farkları. Eski regex'ler Türkçe Windows'ta
+   **hiç eşleşmiyordu** → ağ ölçümü tamamen işlevsizdi.
+   → `ConvertFrom-PingOutput` (dil bağımsız).
+4. **Jitter tanımı** — `ortalama − en küçük` jitter değildir.
+   → Ardışık RTT farklarının ortalaması + `StdDevMs`.
+5. **powercfg etiketi yerelleştirmesi** — "Current AC Power Setting Index"
+   Türkçe'de "Mevcut AC Güç Ayarı Dizinü". `Get-PowerCfgValue` buna bağlıydı →
+   **tüm güç planı kontrolleri Türkçe Windows'ta sessizce boş** dönüyordu.
+   → `ConvertFrom-PowerCfgText` (etikete güvenmez).
+6. **NIC sayaçları** — mutlak değer yerine ölçüm aralığı **farkı** raporlanır.
+7. **GPU state dosyası** — sabit ad, ikinci uygulama orijinal güç limitini
+   eziyordu → geri alma bozuluyordu. Artık zaman damgalı ad + en yeni dosya.
+8. **Sistem snapshot'ı** — tek bir `Get-CimInstance` hatası tüm snapshot'ı
+   düşürüyordu. Artık her değer hata toleranslı.
+9. **PresentMon 2.x argümanları** — `--terminate_after_timed`,
+   `--no_console_stats` yalnızca 2.x'te var; sürüm tespiti ile koşullu.
+10. **CapFrameX otomasyon iddiası** — dokümanda "otomatik başlatılır" yazıyordu
+    ama kod yalnızca bilgi mesajı basıyordu. İddia kaldırıldı, yerine
+    `-FrameCsv` ile CSV içe aktarma yolu geldi.
+
+### Eklenen
+- `Get-FrameTimeStats` (modül): sürüm-bağımsız frame time istatistiği —
+  **1% low**, **0.1% low**, p99, p99.9, **input-to-photon**, display latency.
+- `ConvertFrom-PingOutput` (modül): dil bağımsız ping ayrıştırma.
+- `ConvertFrom-PowerCfgText` (modül): dil bağımsız powercfg AC değeri okuma.
+- `Get-Cs2Benchmark.ps1 -FrameCsv`: CapFrameX / PresentMon CSV'si içe aktarma.
+- `tests/Olcum.Tests.ps1`: **29 yeni test** (Türkçe/İngilizce yerelleşimler,
+  PresentMon 1.x/2.x şemaları, locale sayı ayrıştırma, 1% low doğrulaması).
+- `tests/Regression.Tests.ps1`: GPU state dosyası regresyon testleri (3) +
+  **UTF-8 BOM regresyon testleri (17)**.
+
+11. **UTF-8 BOM eksikliği** — Türkçe karakter içeren **13 script'te BOM yoktu**.
+    Windows PowerShell 5.1, BOM'suz .ps1 dosyasını sistem ANSI kodlamasıyla
+    (cp1254) okur → Türkçe metinler bozulur, bazı UTF-8 bayt dizileri tirnak
+    gibi karakterlere denk gelip **sözdizimini** bozabilir.
+    → Tüm `.ps1` / `.psm1` dosyalarına UTF-8 BOM eklendi, regresyon testiyle kilitlendi.
+
+### Ölçülen / doğrulanan
+- Test sayısı: **80 → 129** (hepsi geçiyor)
+- PSScriptAnalyzer: **0 error** (CI eşiği), BOM uyarısı 0
+- Modül export: **37 → 40** fonksiyon
+- `Get-FrameTimeStats` doğrulaması (1800 karelik sentetik PresentMon 2.x CSV):
+  avg 2.795 ms → **357.8 FPS**, 1% low **235 FPS**, 0.1% low 77.8 FPS,
+  p99 2.78 ms, input-to-photon 17.98 ms — hesaplar elle doğrulandı.
+- Türkçe ve İngilizce ping çıktıları **aynı sonucu** üretiyor.
+
+### Değişen
+- `Get-Cs2Benchmark.ps1` artık **input-to-photon** ve **1% low** raporluyor;
+  kabul kriterleri raporun altında otomatik gösteriliyor.
+- Rapor (RAPOR.md) yeni **8B** bölümü: ölçüm motorundaki düzeltmelerin
+  tamamı, gerekçeleriyle belgelendi.
+
 ## [v1.13.0] — 2026-11-10
 
 ### Değişen

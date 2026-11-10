@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   CS2-Win10-Optimizer ortak yardımcı modülü.
@@ -142,6 +142,56 @@ function Split-PowerCfgAlias {
     return @($Alias -split '\s+' | Where-Object { $_ })
 }
 
+function ConvertFrom-PowerCfgText {
+    <#
+      .SYNOPSIS
+        "powercfg /query" çıktısından AC (alternatif akım) değerini döner.
+
+      .DESCRIPTION
+        DİL-BAĞIMSIZ ÇÖZÜMLERİCİ.
+
+        Eski yaklaşım 'Current AC Power Setting Index:' etiketini arıyordu.
+        Bu etiket Windows diline göre değişir:
+          - EN: "Current AC Power Setting Index: 0x00000005"
+          - TR: "Mevcut AC Güç Ayarı Dizinü: 0x00000005"
+        Türkçe Windows'ta eşleşme başarısız olur ve tüm güç planı
+        kontrolleri sessizce $null dönerdi.
+
+        Yeni yaklaşım etikete güvenmez:
+          1) Hex değer içeren satırlar bulunur (0x...). GUID satırları "0x"
+            içermediği için elenir.
+          2) Etiketinde AC/CA geçen satır tercih edilir.
+          3) Bulunamazsa İLK hex satır kullanılır — powercfg AC satırını
+            her zaman DC satırından ÖNCE yazar, bu yüzden bu güvenlidir.
+
+      .PARAMETER Text
+        powercfg /query çıktısının tam metni.
+
+      .OUTPUTS
+        [int] Değer veya $null.
+    #>
+    param([AllowEmptyString()][string]$Text)
+
+    if (-not $Text) { return $null }
+
+    $pairs = @()
+    foreach ($line in ($Text -split "`r?`n")) {
+        $m = [regex]::Match($line, '(?i)(0x[0-9a-f]{8})')
+        if ($m.Success) {
+            $pairs += [pscustomobject]@{
+                Label = $line.Substring(0, $m.Index)
+                Value = $m.Groups[1].Value
+            }
+        }
+    }
+    if ($pairs.Count -eq 0) { return $null }
+
+    $ac = $pairs | Where-Object { $_.Label -match '(?i)\b(ac|ca)\b' } | Select-Object -First 1
+    if (-not $ac) { $ac = $pairs[0] }
+
+    return [Convert]::ToInt32($ac.Value, 16)
+}
+
 function Get-PowerCfgValue {
     <#
       .SYNOPSIS
@@ -152,10 +202,7 @@ function Get-PowerCfgValue {
     if ($parts.Count -eq 0) { return $null }
     $out = & powercfg.exe /query SCHEME_CURRENT @parts 2>$null
     if (-not $out) { return $null }
-    $text = ($out -join "`n")
-    $m = [regex]::Match($text, 'Current AC Power Setting Index:\s*(0x[0-9a-fA-F]+)')
-    if ($m.Success) { return [Convert]::ToInt32($m.Groups[1].Value, 16) }
-    return $null
+    return (ConvertFrom-PowerCfgText -Text ($out -join "`n"))
 }
 
 function Set-PowerCfgValue {
@@ -499,6 +546,308 @@ function Get-DefaultGateway {
     return $null
 }
 
+# ---------------------------------------------------------------------------
+# Olcum cozumleyicileri (dil/versiyon bagimsiz)
+# ---------------------------------------------------------------------------
+function ConvertFrom-PingOutput {
+    <#
+      .SYNOPSIS
+        ping.exe ciktisini dil bagimsiz olarak ayristirir.
+
+      .DESCRIPTION
+        DİL-BAĞIMSIZ ÇÖZÜMLERİCİ.
+
+        Eski yaklasim `time[=<]\s*(\d+)\s*ms` ve
+        `\((\d+)%\s+(packet\s+)?loss\)` regex'lerini kullaniyordu. Bu
+        regexler Turkce Windows'ta KIRILIR:
+
+          EN yanit : "64 bytes from 8.8.8.8: icmp_seq=1 ttl=118 time=14 ms"
+          TR  yanit : "8.8.8.8 yanıt: bayt=32 süre=14ms TTL=116"
+
+          EN ozet   : "Lost = 0 (0% loss)"
+          TR  ozet   : "Kaybedilen = 0 (0% kayıp)"
+
+        Sonuc: Turkce Windows'ta RTT listesi BOS, kayip %null,
+        jitter null -> ag olcumu tamamen islevsiz kaliyordu.
+
+        Yeni yaklasim:
+          1) "statistik/statistics" basligindan sonraki bolum (ozet) ayrilir.
+          2) Yanit satirlari IPv4 adresi ICEREN satirlardir; her satirdan
+             sure degeri ("süre", "time", "zeit", ...) veya genel
+             "<sayi> ms" deseni cikarilir.
+          3) Ozet bolumden kayip yuzdesi parantez icinden okunur; yoksa
+             "Lost/Kaybedilen" ve "Sent/Gonderilen" sayilarindan hesaplanir.
+
+      .PARAMETER Text
+        ping.exe ciktisinin tam metni.
+
+      .OUTPUTS
+        [hashtable] Target yoksa Target alani disarida birakilir.
+    #>
+    param([AllowEmptyString()][string]$Text)
+
+    $result = [ordered]@{
+        PacketLoss = $null
+        AvgMs      = $null
+        MinMs      = $null
+        MaxMs      = $null
+        JitterMs   = $null
+        StdDevMs   = $null
+        Samples    = 0
+        Timeouts   = 0
+    }
+    if (-not $Text) { return $result }
+
+    $lines = @($Text -split "`r?`n")
+
+    # 1) Ozet blogunu ayir
+    $statsIdx = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '(?i)(statistik|statistics|statistiques|statistiken|estad[ií]sticas)') {
+            $statsIdx = $i
+            break
+        }
+    }
+    $replyLines = @()
+    $statsLines = @()
+    if ($statsIdx -ge 0) {
+        if ($statsIdx -gt 0) { $replyLines = $lines[0..($statsIdx - 1)] }
+        $statsLines = $lines[$statsIdx..($lines.Count - 1)]
+    } else {
+        $replyLines = $lines
+    }
+
+    # 2) RTT ornekleri
+    $rtt = New-Object System.Collections.Generic.List[double]
+    $timeouts = 0
+    foreach ($line in $replyLines) {
+        if ($line -match '(?i)(zaman\s*a[sş][iı]m[iı]|timed\s*out|timeout|u[gğ]rad[iı])') {
+            $timeouts++
+            continue
+        }
+        # Yanit satiri mutlaka bir IPv4 adresi icerir
+        if ($line -notmatch '\d{1,3}(\.\d{1,3}){3}') { continue }
+        $m = [regex]::Match($line, '(?i)(s\u00FCre|saat|time|zeit|temps|duraci\u00F3n|tiempo)\s*[=<]\s*(\d+(?:\.\d+)?)\s*ms')
+        if (-not $m.Success) {
+            $m = [regex]::Match($line, '(?i)(\d+(?:\.\d+)?)\s*ms')
+        }
+        if ($m.Success) {
+            $val = 0.0
+            # NOT: 2 argümanlı TryParse CurrentCulture kullanır. Türkçe locale'de
+            # "14,5" gibi virgüllü değerler hatalı ayrıştırılır; InvariantCulture şart.
+            if ([double]::TryParse($m.Groups[$m.Groups.Count - 1].Value,
+                    [Globalization.NumberStyles]::Float,
+                    [Globalization.CultureInfo]::InvariantCulture, [ref]$val)) {
+                if ($val -gt 0) { $rtt.Add($val) }
+            }
+        }
+    }
+
+    # 3) Kayip yuzdesi
+    $statsText = ($statsLines -join "`n")
+    if ($statsText) {
+        $lm = [regex]::Match($statsText, '\(\s*(\d+)\s*%')
+        if ($lm.Success) {
+            $result.PacketLoss = [int]$lm.Groups[1].Value
+        } else {
+            $lost = [regex]::Match($statsText, '(?i)(lost|kaybedilen)\s*=\s*(\d+)')
+            $sent = [regex]::Match($statsText, '(?i)(sent|g[öo]nderilen)\s*=\s*(\d+)')
+            if ($lost.Success -and $sent.Success) {
+                $sentVal = [int]$sent.Groups[1].Value
+                if ($sentVal -gt 0) {
+                    $result.PacketLoss = [math]::Round(
+                        (100.0 * [int]$lost.Groups[1].Value) / $sentVal, 2)
+                }
+            }
+        }
+    }
+
+    # 4) Istatistikler
+    if ($rtt.Count -gt 0) {
+        $arr = $rtt.ToArray()
+        $avg = ($arr | Measure-Object -Average).Average
+        $result.Samples  = $arr.Count
+        $result.AvgMs    = [math]::Round($avg, 2)
+        $result.MinMs    = ($arr | Measure-Object -Minimum).Minimum
+        $result.MaxMs    = ($arr | Measure-Object -Maximum).Maximum
+        $result.StdDevMs = [math]::Round([math]::Sqrt(
+            (($arr | ForEach-Object { [math]::Pow($_ - $avg, 2) } | Measure-Object -Sum).Sum) / $arr.Count), 3)
+        # Jitter = ardışık RTT örnekleri arasındaki mutlak farkların ortalaması.
+        # (Eski "ortalama - en küçük" formülü jitter değildir.)
+        if ($arr.Count -gt 1) {
+            $sum = 0.0
+            for ($i = 1; $i -lt $arr.Count; $i++) {
+                $sum += [math]::Abs($arr[$i] - $arr[$i - 1])
+            }
+            $result.JitterMs = [math]::Round($sum / ($arr.Count - 1), 3)
+        }
+    }
+    $result.Timeouts = $timeouts
+    return $result
+}
+
+function Get-FrameTimeStats {
+    <#
+      .SYNOPSIS
+        PresentMon / CapFrameX CSV'sinden frame time istatistiklerini hesaplar.
+
+      .DESCRIPTION
+        SÜRÜM-BAĞIMSIZ ÇÖZÜMLERİCİ.
+
+        PresentMon 1.x CSV'sinde  "FrameTime"  kolonu vardır.
+        PresentMon 2.x VARSAYILAN metriklerinde "FrameTime" kolonu YOKTUR;
+        bunun yerine "MsBetweenPresents" bulunur.
+
+        Eski kod yalnızca `$r.FrameTime` okuyordu. PresentMon 2.x (bugün
+        indirilen sürüm) ile CSV'de o kolon bulunmadığından 0 frame
+        parse ediliyor ve olcum sessizce BASARISIZ oluyordu.
+
+        Bu fonksiyon:
+          - Aday kolon listesinden bulunabilen ilk frame time kolonunu seçer
+          - 1% low ve 0.1% low hesaplar (projenin kabul kriteri)
+          - Input-to-photon (girdi-gecikme) ve display latency raporlar
+          - Oyun filtresi uygular (Application kolonu varsa)
+
+      .PARAMETER Rows
+        Import-Csv ile okunmuş satırlar.
+
+      .PARAMETER ApplicationFilter
+        Application kolonunda aranacak metin (bos ise filtre uygulanmaz).
+
+      .OUTPUTS
+        [hashtable] veya $null (veri yoksa).
+    #>
+    [CmdletBinding()]
+    param(
+        [object[]]$Rows,
+        [string]$ApplicationFilter = 'cs2',
+        [string[]]$TimeColumns = @(
+            'FrameTime', 'MsBetweenPresents', 'FrameTime (ms)', 'FrameTime(ms)',
+            'frametime', 'Frame Time', 'frametime(ms)', 'MsUntilDisplayed'
+        ),
+        [string[]]$InputLatencyColumns = @(
+            'MsAllInputToPhotonLatency', 'MsClickToPhotonLatency',
+            'AllInputToPhasesLatency', 'InputLatency'
+        ),
+        [string[]]$DisplayLatencyColumns = @(
+            'DisplayLatency', 'MsUntilDisplayed', 'MsRenderPresentLatency'
+        )
+    )
+
+    if (-not $Rows -or $Rows.Count -eq 0) { return $null }
+
+    $names = @($Rows[0].PSObject.Properties.Name)
+
+    function Select-Column {
+        param([string[]]$Candidates, [string[]]$Available)
+        foreach ($c in $Candidates) {
+            $hit = $Available | Where-Object { $_ -eq $c } | Select-Object -First 1
+            if ($hit) { return $hit }
+        }
+        return $null
+    }
+
+    $timeCol = Select-Column -Candidates $TimeColumns -Available $names
+    if (-not $timeCol) { return $null }
+
+    $appCol = Select-Column -Candidates @('Application', 'ProcessName') -Available $names
+    $inCol  = Select-Column -Candidates $InputLatencyColumns -Available $names
+    $dspCol = Select-Column -Candidates $DisplayLatencyColumns -Available $names
+
+    $times  = New-Object System.Collections.Generic.List[double]
+    $inputs = New-Object System.Collections.Generic.List[double]
+    $disps  = New-Object System.Collections.Generic.List[double]
+
+    foreach ($r in $Rows) {
+        if ($appCol -and $ApplicationFilter) {
+            $app = [string]$r.$appCol
+            if ($app -and ($app -notlike "*$ApplicationFilter*")) { continue }
+        }
+        # NOT: 2 argümanlı TryParse CurrentCulture kullanır. PresentMon CSV'si
+        # nokta ile ondalık yazar; Türkçe locale'de "2.780" -> 2780 olurdu
+        # (1000 kat hatalı frame time). InvariantCulture zorunlu.
+        $v = 0.0
+        $raw = $r.$timeCol
+        if ($null -ne $raw -and [double]::TryParse([string]$raw,
+                [Globalization.NumberStyles]::Float,
+                [Globalization.CultureInfo]::InvariantCulture, [ref]$v)) {
+            if ($v -gt 0) { $times.Add($v) }
+        }
+        if ($inCol) {
+            $iv = 0.0
+            $rawIn = $r.$inCol
+            if ($null -ne $rawIn -and [double]::TryParse([string]$rawIn,
+                    [Globalization.NumberStyles]::Float,
+                    [Globalization.CultureInfo]::InvariantCulture, [ref]$iv)) {
+                if ($iv -gt 0) { $inputs.Add($iv) }
+            }
+        }
+        if ($dspCol) {
+            $dv = 0.0
+            $rawDsp = $r.$dspCol
+            if ($null -ne $rawDsp -and [double]::TryParse([string]$rawDsp,
+                    [Globalization.NumberStyles]::Float,
+                    [Globalization.CultureInfo]::InvariantCulture, [ref]$dv)) {
+                if ($dv -gt 0) { $disps.Add($dv) }
+            }
+        }
+    }
+
+    if ($times.Count -eq 0) { return $null }
+
+    $sorted = @($times | Sort-Object)
+    $avg    = ($times | Measure-Object -Average).Average
+
+    function Get-Percentile {
+        param([double[]]$Sorted, [double]$Pct)
+        if ($Sorted.Count -eq 0) { return $null }
+        $idx = [math]::Max(0, [math]::Ceiling($Sorted.Count * $Pct) - 1)
+        return $Sorted[[math]::Min($idx, $Sorted.Count - 1)]
+    }
+
+    function Get-LowPercent {
+        param([double[]]$Sorted, [double]$Fraction)
+        # En yavaş %Fraction karelerin ORTALAMA frame time'ı (1% low tanımı)
+        $take = [math]::Max(1, [int][math]::Ceiling($Sorted.Count * $Fraction))
+        $tail = $Sorted[($Sorted.Count - $take)..($Sorted.Count - 1)]
+        return ($tail | Measure-Object -Average).Average
+    }
+
+    $low1Ms  = Get-LowPercent -Sorted $sorted -Fraction 0.01
+    $low01Ms = Get-LowPercent -Sorted $sorted -Fraction 0.001
+
+    $stats = [ordered]@{
+        Column      = $timeCol
+        Frames      = $times.Count
+        AvgMs       = [math]::Round($avg, 3)
+        MinMs       = ($times | Measure-Object -Minimum).Minimum
+        MaxMs       = ($times | Measure-Object -Maximum).Maximum
+        P99Ms       = [math]::Round((Get-Percentile -Sorted $sorted -Pct 0.99), 3)
+        P999Ms      = [math]::Round((Get-Percentile -Sorted $sorted -Pct 0.999), 3)
+        Low1Ms      = [math]::Round($low1Ms, 3)
+        Low1FPS     = [math]::Round((1000.0 / $low1Ms), 1)
+        Low01Ms     = [math]::Round($low01Ms, 3)
+        Low01FPS    = [math]::Round((1000.0 / $low01Ms), 1)
+        AvgFPS      = [math]::Round((1000.0 / $avg), 1)
+    }
+
+    if ($inputs.Count -gt 0) {
+        $is = @($inputs | Sort-Object)
+        $stats['InputLatencyAvgMs'] = [math]::Round(($inputs | Measure-Object -Average).Average, 3)
+        $stats['InputLatencyP99Ms'] = [math]::Round((Get-Percentile -Sorted $is -Pct 0.99), 3)
+        $stats['InputLatencyMaxMs'] = [math]::Round((Get-Percentile -Sorted $is -Pct 1.0), 3)
+        $stats['InputLatencyColumn'] = $inCol
+    }
+    if ($disps.Count -gt 0) {
+        $ds = @($disps | Sort-Object)
+        $stats['DisplayLatencyAvgMs'] = [math]::Round(($disps | Measure-Object -Average).Average, 3)
+        $stats['DisplayLatencyP99Ms'] = [math]::Round((Get-Percentile -Sorted $ds -Pct 0.99), 3)
+        $stats['DisplayLatencyColumn'] = $dspCol
+    }
+
+    return $stats
+}
+
 Export-ModuleMember -Function @(
     'Write-Step', 'Write-Info', 'Write-Ok', 'Write-Warn', 'Write-Err',
     'Get-RegValue', 'Test-RegValue', 'Set-RegDword', 'Set-RegString',
@@ -507,9 +856,11 @@ Export-ModuleMember -Function @(
     'Save-ServiceState', 'Restore-ServiceState',
     'Save-TaskState', 'Restore-TaskState',
     'Save-Flag', 'Get-Flag',
-    'Split-PowerCfgAlias', 'Get-PowerCfgValue', 'Set-PowerCfgValue',
+    'Split-PowerCfgAlias', 'ConvertFrom-PowerCfgText',
+    'Get-PowerCfgValue', 'Set-PowerCfgValue',
     'Backup-PowerCfgValue', 'Save-PowerCfgBackup', 'Restore-PowerCfgBackup', 'Reset-PowerCfgBackup',
     'Get-TargetAdapter', 'Get-NicProperties', 'Backup-NicProperties', 'Restore-NicProperties',
     'Set-NicPropertyByDisplayName', 'Set-NicPropertyByKeyword', 'Get-NicStatistics',
-    'Format-Bytes', 'Format-Date', 'ConvertFrom-MonitorId', 'Get-DefaultGateway'
+    'Format-Bytes', 'Format-Date', 'ConvertFrom-MonitorId', 'Get-DefaultGateway',
+    'ConvertFrom-PingOutput', 'Get-FrameTimeStats'
 )

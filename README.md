@@ -23,7 +23,7 @@ Windows 10 + NVIDIA tarafında, **CS2 için oyun dışı** optimizasyonları bel
 | `Get-Cs2AimMatrix.ps1` | DPI / CS2 sens / polling matrisi hesaplar: eDPI sabitken DPI kademeleri, cm/360, polling doygunluk hızları ve polling×FPS etkileşimi. Read-only. |
 | `Get-Cs2RawAccelCheck.ps1` | RawAccel kurulumunu denetler: sürücü durumu, settings.json çarpanları ve CS2'de **gerçekte oynadığınız** sens/cm-360 değerini hesaplar. Read-only. |
 | `Get-Cs2TargetCheck.ps1` | **Hedef profil denetimi.** "CS2 mükemmel sistem" tanımına göre sistemdeki her katmanı kontrol eder; OK/WARN/FAIL + gereken aksiyon raporu üretir. Read-only. |
-| `Get-Cs2Benchmark.ps1` | **Ölçüm motoru.** CapFrameX/PresentMon frame time, HWiNFO/nvidia-smi sensörleri, ağ jitter/paket kaybı ve NIC discard sayaçlarını toplar; `summary.md` + `summary.json` üretir. Hiçbir ayarı değiştirmez. |
+| `Get-Cs2Benchmark.ps1` | **Ölçüm motoru.** PresentMon/CapFrameX frame time (**1% low**, 0.1% low, p99, **input-to-photon**), HWiNFO/nvidia-smi sensörleri, dil-bağımsız ağ jitter/paket kaybı ve NIC sayaç **farkı** toplar; `summary.md` + `summary.json` üretir. Hiçbir ayarı değiştirmez. |
 | `Get-Cs2GpuProfile.ps1` | RTX 3070 power limit yönetimi (nvidia-smi) + doğrulanmış NVIDIA Profile Inspector (.nip) profili üretimi. Revert destekler. |
 | `CS2Optimizer.psm1` | Ortak yardımcı modülü (registry, powercfg, NIC, backup/revert). Tüm scriptler bunu kullanır. |
 | `RAPOR.md` | Tüm ayarlar, gerekçeler, uygulama sırası, ölçüm protokolü, yapma listesi. |
@@ -53,6 +53,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2RawAccelCheck.p
 # 2) Baseline ölçümü (CS2 açıkken çalıştır)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2Benchmark.ps1 -Label baseline
 
+# 2b) CapFrameX'te benchmark'u elle yapıp CSV export ettiyseniz:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2Benchmark.ps1 -FrameCsv .\capture.csv -Label cfx
+
 # 3) Bir değişiklik uygula (dry-run önce!)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1 -Apply -SetProcessorPerformance
 
@@ -64,6 +67,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 ```
 
 > Ölçüm karşılaştırmasında **ortalama FPS değil 1% low ve frametime p99** dikkat et.
+>
+> `Get-Cs2Benchmark.ps1` ayrıca **input-to-photon** (mouse → ekran gecikmesi)
+> ve **jitter + std. sapma** raporlar. Çıktılar `summary.md` + `summary.json`
+> olarak Masaüstü'ne yazılır.
 >
 > **Hedef profilin tam tanımı:** [`docs/HEDEF-PROFIL.md`](docs/HEDEF-PROFIL.md)
 
@@ -194,6 +201,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ## Sürüm
 
+- **v1.14.0** — Ölçüm motorundaki **11 gerçek hata** düzeltildi: PresentMon 2.x kolon uyumu (`FrameTime` yok!), Türkçe locale'de 1000× hatalı sayı ayrıştırma, Türkçe ping/powercfg çıktısı, doğru jitter tanımı, 1% low + **input-to-photon** ölçümü, NIC sayaç farkı, UTF-8 BOM eksikliği. Testler **80 → 129**.
 - **v1.13.0** — Repo **public** oldu; release asset'ları artık giriş yapmadan tarayıcıdan doğrudan indirilebiliyor (doğrulandı).
 - **v1.12.1** — Private repo release indirme rehberi eklendi (`docs/INDIRME.md`); asset'lar girişsiz 404 veriyor, 4 alternatif yol belgelendi.
 - **v1.12.0** — Tam proje denetimi: powercfg revert sırası, ASPM/USB yedekleme, OneClick `-Revert`, modül graceful fallback düzeltildi; 49 regresyon testi eklendi.

@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   RawAccel kurulumunu denetler: CS2'de gerçekte hangi nişan hızını oynadığınızı hesaplar.

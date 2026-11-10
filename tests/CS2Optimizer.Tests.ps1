@@ -115,7 +115,8 @@ Describe 'CS2Optimizer modulu' {
                 'Set-NicPropertyByKeyword', 'Get-NicStatistics',
                 'Save-ServiceState', 'Restore-ServiceState',
                 'Save-TaskState', 'Restore-TaskState', 'Save-Flag', 'Get-Flag',
-                'Format-Bytes', 'Format-Date', 'ConvertFrom-MonitorId', 'Get-DefaultGateway'
+                'Format-Bytes', 'Format-Date', 'ConvertFrom-MonitorId', 'Get-DefaultGateway',
+                'ConvertFrom-PowerCfgText', 'ConvertFrom-PingOutput', 'Get-FrameTimeStats'
             )
             $exported = (Get-Module CS2Optimizer).ExportedFunctions.Keys
             foreach ($fn in $required) {

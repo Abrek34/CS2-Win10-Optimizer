@@ -478,19 +478,29 @@ Sistem şu koşulları sağladığında **hedef yakalanmış** sayılır:
 
 | # | Kriter | Ölçüm |
 |---|---|---|
-| 1 | **Ortalama FPS ≥ 357** | CapFrameX, 3 run, aynı map |
-| 2 | **1% low ≥ 280** | CapFrameX |
-| 3 | **Frametime p99 ≤ 4.0 ms** | CapFrameX |
+| 1 | **Ortalama FPS ≥ 357** | `Get-Cs2Benchmark.ps1` (PresentMon) veya CapFrameX, 3 run, aynı map |
+| 2 | **1% low ≥ 280** | `Get-Cs2Benchmark.ps1` → `Low1FPS` (veya CapFrameX) |
+| 3 | **Frametime p99 ≤ 4.0 ms** | `Get-Cs2Benchmark.ps1` → `P99Ms` (veya CapFrameX) |
 | 4 | **Termal throttle yok** | HWiNFO `clocks_throttle_reasons` boş |
 | 5 | **WHEA hatası yok** | HWiNFO log |
 | 6 | **DPC/ISR max < 100 µs** | LatencyMon, 10 dk boşta + oyun |
-| 7 | **Paket kaybı %0** | `Get-Cs2Benchmark.ps1` → ping + NIC sayaçları |
-| 8 | **Jitter < 5 ms** | Aynı |
+| 7 | **Paket kaybı %0** | `Get-Cs2Benchmark.ps1` → ping + NIC sayaç **farkı** |
+| 8 | **Jitter < 5 ms** | Aynı (`JitterMs`, ardışık RTT farklarının ortalaması) |
 | 9 | **Bufferbloat notu A veya B** | waveform.com/bufferbloat |
-| 10 | **Mouse polling 1000 Hz'de 1% low ≥ 280** (8K/4K/2K denendi) | Mouse Rate Checker + CapFrameX |
+| 10 | **Mouse polling 1000 Hz'de 1% low ≥ 280** (8K/4K/2K denendi) | Mouse Rate Checker + `Low1FPS` |
+| 11 | **Input-to-photon p99 ≤ 4.0 ms** (360 Hz panel sınırı) | `Get-Cs2Benchmark.ps1` → `InputLatencyP99Ms` (PresentMon 2.x) |
 
 > **1% low ≥ 280** 360 Hz'de pratik sınır: ortalama 357 iken 1% low 280'in
 > üzerindeyse panik yapacak bir düşüş yok demektir.
+>
+> **Ölçüm aracı tutarlılığı:** `Get-Cs2Benchmark.ps1` PresentMon 1.x ve 2.x CSV
+> şemalarını otomatik tanır, CS2 dışı satırları filtreler ve tüm sayıları
+> **yerel ayardan bağımsız** (InvariantCulture) ayrıştırır — Türkçe Windows'ta
+> da doğru değer verir. Detay: [RAPOR.md 8B](https://github.com/Abrek34/CS2-Win10-Optimizer/blob/main/RAPOR.md).
+>
+> **Jitter tanımı:** `JitterMs` = ardışık RTT örnekleri arasındaki mutlak
+> farkların ortalaması (RFC 3550 mantığı). "Ortalama − en küçük" **jitter
+> değildir** ve kullanılmaz.
 
 ---
 

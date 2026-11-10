@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   CS2 fare DPI / sens / polling rate matrisini hesaplar ve raporlar.
@@ -73,7 +73,9 @@ $PollingHz = @(
     foreach ($p in $PollingHz) {
         foreach ($part in ("$p" -split ',')) {
             $v = 0
-            if ([int]::TryParse($part.Trim(), [ref]$v) -and $v -gt 0) { $v }
+            # InvariantCulture: yerel ayar "8.000" gibi girdileri de kabul etsin.
+            if ([int]::TryParse($part.Trim(), [Globalization.NumberStyles]::Integer,
+                    [Globalization.CultureInfo]::InvariantCulture, [ref]$v) -and $v -gt 0) { $v }
         }
     }
 )

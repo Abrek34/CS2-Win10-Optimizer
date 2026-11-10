@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   CS2-Win10-Optimizer için tekrarlanabilir ölçüm (benchmark) motoru.
@@ -8,13 +8,15 @@
   otomatikleştirir. Kendisi hiçbir ayarı DEĞİŞTİRMEZ; yalnızca ölçer ve raporlar.
 
   Yetenekleri:
-    - CapFrameX varsa: oyun içi benchmark otomatik başlatılır, CSV çıktısı alınır
-      (avg / 1% low / 0.1% low / frametime p99).
-    - CapFrameX yoksa: PresentMon ile frame time + present latency toplanır.
+    - PresentMon varsa: frame time + p99 + 1% low + 0.1% low + input-to-photon
+      latency toplanır (kolon seçimi PresentMon sürümüne göre otomatiktir).
+    - CapFrameX / PresentMon CSV'si -FrameCsv ile verilirse aynı istatistikler
+      üretilir (CapFrameX'in kendi arayüzünde benchmark yapıp export etmek için).
     - HWiNFO64 sensörleri (varsa) CSV olarak toplanır (CPU/GPU clock, sıcaklık, WHEA).
     - LatencyMon yoksa: atlanır (DPC/ISR ölçümü manuel).
-    - Ağ: hedeflere ICMP ping serisi ile jitter ve paket kaybı ölçülür.
-    - NIC: discard/error sayaçları okunur (paket kaybı göstergesi).
+    - Ağ: hedeflere ICMP ping serisi ile jitter ve paket kaybı ölçülür
+      (çıktı ayrıştırma Windows diline bağlı DEĞİLDİR: EN/TR/TR kayıp dahil).
+    - NIC: discard/error sayaçları ölçüm başı ve sonunda okunur; FARK raporlanır.
     - Tüm sonuçlar tek klasörde toplanır ve özet Markdown/JSON olarak yazılır.
 
   Bu script read-only'dir: registry, servis, güç planı veya BIOS değiştirmez.
@@ -27,6 +29,12 @@
 
 .PARAMETER PresentMonPath
   PresentMon.exe yolu. Bulunamazsa otomatik aranır.
+
+.PARAMETER FrameCsv
+  Daha önce dışa aktarılmış bir CapFrameX veya PresentMon CSV dosyası.
+  Bu dosya üzerinden de aynı istatistikler (avg / 1% low / 0.1% low / p99)
+  hesaplanır. CapFrameX'te benchmark'u elle çalıştırıp CSV export ederseniz
+  ölçümü script'e aktarabilirsiniz.
 
 .PARAMETER HWiNFOPath
   HWiNFO64.exe yolu. Bulunamazsa otomatik aranır.
@@ -65,6 +73,7 @@ param(
     [string]$OutputDirectory,
     [string]$CapFrameXPath,
     [string]$PresentMonPath,
+    [string]$FrameCsv,
     [string]$HWiNFOPath,
     [int]$Seconds = 120,
     [string[]]$PingTargets,
@@ -98,6 +107,20 @@ if (-not (Get-Command -Name 'Write-Info' -ErrorAction SilentlyContinue)) {
     function Write-Ok   { param([string]$Message) Write-Host "[+] $Message" -ForegroundColor Green }
     function Write-Warn { param([string]$Message) Write-Host "[!] $Message" -ForegroundColor Yellow }
     function Write-Err  { param([string]$Message) Write-Host "[-] $Message" -ForegroundColor Red }
+}
+
+# Ayristirici yardimcilar da modul ile gelir; modul yoksa inline fallback.
+if (-not (Get-Command -Name 'ConvertFrom-PingOutput' -ErrorAction SilentlyContinue)) {
+    Write-Warning 'ConvertFrom-PingOutput bulunamadi; yerlesim-duyarsiz olcum kullanilamaz (ag sonuclari bos kalir).'
+    function ConvertFrom-PingOutput {
+        param([AllowEmptyString()][string]$Text)
+        return [ordered]@{ PacketLoss = $null; AvgMs = $null; MinMs = $null; MaxMs = $null;
+                           JitterMs = $null; StdDevMs = $null; Samples = 0; Timeouts = 0 }
+    }
+}
+if (-not (Get-Command -Name 'Get-FrameTimeStats' -ErrorAction SilentlyContinue)) {
+    Write-Warning 'Get-FrameTimeStats bulunamadi; frame time olcumu kullanilamaz.'
+    function Get-FrameTimeStats { param([object[]]$Rows) return $null }
 }
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 
@@ -137,36 +160,11 @@ function Measure-Ping {
     $out = & ping.exe -n $Count $Target 2>&1
     $text = ($out -join "`n")
 
-    $loss = $null
-    $m = [regex]::Match($text, '\((\d+)%\s+(packet\s+)?loss\)')
-    if ($m.Success) { $loss = [int]$m.Groups[1].Value }
-
-    $rtt = @()
-    foreach ($line in $out) {
-        $rm = [regex]::Match([string]$line, 'time[=<]\s*(\d+)\s*ms')
-        if ($rm.Success) { $rtt += [int]$rm.Groups[1].Value }
-    }
-
-    $avg = $null; $min = $null; $max = $null; $jitter = $null
-    if ($rtt.Count -gt 0) {
-        $avg = [math]::Round(($rtt | Measure-Object -Average).Average, 2)
-        $min = ($rtt | Measure-Object -Minimum).Minimum
-        $max = ($rtt | Measure-Object -Maximum).Maximum
-        if ($rtt.Count -gt 1) {
-            $jitter = [math]::Round((($rtt | Measure-Object -Average).Average) - (($rtt | Measure-Object -Minimum).Minimum), 2)
-        }
-    }
-
-    return [ordered]@{
-        Target      = $Target
-        PacketLoss  = $loss
-        AvgMs       = $avg
-        MinMs       = $min
-        MaxMs       = $max
-        JitterMs    = $jitter
-        Samples     = $rtt.Count
-        RawOutput   = ($out | Select-Object -Last 6)
-    }
+    # Dil-bağımsız ayrıştırma: EN/TR/de yerelleşimlerinin hepsini destekler.
+    $stats = ConvertFrom-PingOutput -Text $text
+    $stats['Target']   = $Target
+    $stats['RawOutput'] = ($out | Select-Object -Last 6)
+    return $stats
 }
 
 # ---------------------------------------------------------------------------
@@ -188,19 +186,36 @@ Write-Info "Output     : $runDir"
 # System snapshot
 # ---------------------------------------------------------------------------
 Write-Step 'System snapshot'
+
+# Tek bir WMI hatasinin TUM snapshot'i dusmesine yol acmamasi icin her
+# deger ayri ayri guvenli sekilde alinir (literal icinde hata = tamamen bos).
+function Get-SafeValue {
+    param([scriptblock]$Block, $Default = $null)
+    try { $v = & $Block } catch { $v = $null }
+    if ($null -eq $v) { return $Default }
+    return $v
+}
+
+$osInfo     = Get-SafeValue { Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue }
+$cpuInfo    = Get-SafeValue { Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1 }
+$memInfo    = Get-SafeValue { Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue }
+$gpuWin     = Get-SafeValue { Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'NVIDIA' } | Select-Object -First 1 }
+$planText   = Get-SafeValue { (& powercfg.exe /getactivescheme 2>$null) -join ' ' }
+$hwSchMode  = Get-SafeValue { (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers' -Name 'HwSchMode' -ErrorAction SilentlyContinue).HwSchMode }
+
 $snapshot = [ordered]@{
     Timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
     Label     = $Label
     PollingHz = $(if ($PollingHz -gt 0) { $PollingHz } else { 'N/A' })
     Computer  = $env:COMPUTERNAME
-    OS        = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
-    Build     = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).BuildNumber
-    CPU       = (Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1).Name
-    RAM_GB    = [math]::Round(((Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue | Measure-Object Capacity -Sum).Sum / 1GB), 1)
-    GPU       = ((Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'NVIDIA' } | Select-Object -First 1).Name)
-    GPUDriver = ((Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'NVIDIA' } | Select-Object -First 1).DriverVersion)
-    PowerPlan = ((& powercfg.exe /getactivescheme 2>$null) -join ' ')
-    HwSchMode = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers' -Name 'HwSchMode' -ErrorAction SilentlyContinue).HwSchMode
+    OS        = $osInfo.Caption
+    Build     = $osInfo.BuildNumber
+    CPU       = $cpuInfo.Name
+    RAM_GB    = [math]::Round((($memInfo | Measure-Object Capacity -Sum).Sum / 1GB), 1)
+    GPU       = $gpuWin.Name
+    GPUDriver = $gpuWin.DriverVersion
+    PowerPlan = $planText
+    HwSchMode = $hwSchMode
 }
 
 $snapshot | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $runDir 'system-snapshot.json') -Encoding UTF8
@@ -241,7 +256,36 @@ if ($smi) {
 # ---------------------------------------------------------------------------
 # Network: ping / jitter / loss
 # ---------------------------------------------------------------------------
+function Get-NicSnapshot {
+    $snap = @{}
+    try {
+        $adapters = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' })
+        foreach ($a in $adapters) {
+            $s = Get-NetAdapterStatistics -Name $a.Name -ErrorAction SilentlyContinue
+            if ($s) {
+                $snap[$a.Name] = [ordered]@{
+                    Name              = $a.Name
+                    LinkSpeed         = [string]$a.LinkSpeed
+                    ReceivedDiscarded = [long]$s.ReceivedDiscardedPackets
+                    ReceivedErrors    = [long]$s.ReceivedPacketErrors
+                    OutboundDiscarded = [long]$s.OutboundDiscardedPackets
+                    OutboundErrors    = [long]$s.OutboundPacketErrors
+                    ReceivedBytes     = [long]$s.ReceivedBytes
+                    SentBytes         = [long]$s.SentBytes
+                }
+            }
+        }
+    } catch {
+        Write-Warn "Adapter statistics unavailable: $($_.Exception.Message)"
+    }
+    return $snap
+}
+
 $netResults = @()
+$nicStats = @()
+$dnsTimes = @()
+$nicBefore = Get-NicSnapshot
+
 if (-not $SkipNetwork) {
     Write-Step 'Network measurement (ping / jitter / packet loss)'
 
@@ -266,35 +310,11 @@ if (-not $SkipNetwork) {
         }
     }
 
-    # NIC error / discard counters (packet loss indicators)
-    Write-Step 'NIC statistics'
-    $nicStats = @()
-    try {
-        $adapters = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' })
-        foreach ($a in $adapters) {
-            $s = Get-NetAdapterStatistics -Name $a.Name -ErrorAction SilentlyContinue
-            if ($s) {
-                $nicStats += [ordered]@{
-                    Name               = $a.Name
-                    LinkSpeed          = [string]$a.LinkSpeed
-                    ReceivedDiscarded  = $s.ReceivedDiscardedPackets
-                    ReceivedErrors     = $s.ReceivedPacketErrors
-                    OutboundDiscarded  = $s.OutboundDiscardedPackets
-                    OutboundErrors     = $s.OutboundPacketErrors
-                    ReceivedBytes      = $s.ReceivedBytes
-                    SentBytes          = $s.SentBytes
-                }
-                Write-Info ("{0}: rx_discarded={1} rx_errors={2} tx_discarded={3} tx_errors={4}" -f `
-                    $a.Name, $s.ReceivedDiscardedPackets, $s.ReceivedPacketErrors, $s.OutboundDiscardedPackets, $s.OutboundPacketErrors)
-            }
-        }
-    } catch {
-        Write-Warn "Adapter statistics unavailable: $($_.Exception.Message)"
-    }
+    # NIC sayaçları ölçüm başında okunur (delta için), aşağıda sonra tekrar okunur.
+    Write-Step 'NIC counters (baseline)'
 
     # DNS resolution time
     Write-Step 'DNS resolution'
-    $dnsTimes = @()
     foreach ($hostName in @('steamcommunity.com', 'google.com')) {
         try {
             $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -316,11 +336,28 @@ if (-not $SkipGame) {
     if ($presentmon) {
         Write-Step "Frame time capture (PresentMon, $Seconds s)"
         Write-Info "CS2'yi simdi baslat ve oynayin. Olcum arka planda suruyor."
+        Write-Info 'PresentMon ETW icin yonetici yetkisi gerektirir. Yonetici degilseniz "Performance Log Users" grubuna ekleyin.'
+
         $pmCsv = Join-Path $runDir 'presentmon.csv'
         $pmLog = Join-Path $runDir 'presentmon.log'
+
+        # PresentMon 2.x ek argumanlari destekler; 1.x desteklemez.
+        $pmArgs = @('--process_name', 'cs2.exe', '--output_file', $pmCsv, '--timed', $Seconds)
+        $pmMajor = 1
         try {
-            $p = Start-Process -FilePath $presentmon `
-                -ArgumentList @('--process_name', 'cs2.exe', '--output_file', $pmCsv, '--timed', $Seconds) `
+            $ver = (Get-Item $presentmon -ErrorAction Stop).VersionInfo.FileVersion
+            if ($ver -match '^(\d+)') { $pmMajor = [int]$Matches[1] }
+        } catch { }
+        if ($pmMajor -ge 2) {
+            $pmArgs += '--terminate_after_timed'
+            $pmArgs += '--no_console_stats'
+            Write-Info "PresentMon surumu: $pmMajor.x (2.x argumanlari kullanildi)"
+        } else {
+            Write-Info "PresentMon surumu: 1.x (uyumlu argumanlar kullanildi)"
+        }
+
+        try {
+            $p = Start-Process -FilePath $presentmon -ArgumentList $pmArgs `
                 -NoNewWindow -PassThru -RedirectStandardError $pmLog
             Start-Sleep -Seconds ([math]::Max($Seconds + 5, 10))
             if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
@@ -332,33 +369,21 @@ if (-not $SkipGame) {
         if (Test-Path $pmCsv) {
             try {
                 $rows = Import-Csv $pmCsv -ErrorAction Stop
-                $frames = @()
-                foreach ($r in $rows) {
-                    $ft = $r.FrameTime
-                    if ($ft) {
-                        $v = 0.0
-                        if ([double]::TryParse($ft, [ref]$v)) { $frames += $v }
+                # Kolon secimi surum-bagimsiz: PresentMon 1.x -> "FrameTime",
+                # PresentMon 2.x -> "MsBetweenPresents". Ayristirma modulde.
+                $frameResults = Get-FrameTimeStats -Rows $rows
+                if ($frameResults) {
+                    Write-Ok ("avg={0}ms  1%low={1}FPS  p99={2}ms  p99.9={3}ms  ~{4} FPS  (kolon: {5})" -f `
+                        $frameResults.AvgMs, $frameResults.Low1FPS, $frameResults.P99Ms,
+                        $frameResults.P999Ms, $frameResults.AvgFPS, $frameResults.Column)
+                    if ($frameResults.Contains('InputLatencyAvgMs')) {
+                        Write-Ok ("input-to-photon: ort={0}ms  p99={1}ms  (kolon: {2})" -f `
+                            $frameResults.InputLatencyAvgMs, $frameResults.InputLatencyP99Ms,
+                            $frameResults.InputLatencyColumn)
                     }
-                }
-                if ($frames.Count -gt 10) {
-                    $sorted = @($frames | Sort-Object)
-                    $avg = ($frames | Measure-Object -Average).Average
-                    $p99 = $sorted[[math]::Max(0, [math]::Floor($sorted.Count * 0.99) - 1)]
-                    $p999 = $sorted[[math]::Max(0, [math]::Floor($sorted.Count * 0.999) - 1)]
-                    $fpsAvg = if ($avg -gt 0) { 1000.0 / $avg } else { 0 }
-                    $frameResults = [ordered]@{
-                        Tool       = 'PresentMon'
-                        Frames     = $frames.Count
-                        AvgMs      = [math]::Round($avg, 3)
-                        P99Ms      = [math]::Round($p99, 3)
-                        P999Ms     = [math]::Round($p999, 3)
-                        AvgFPS     = [math]::Round($fpsAvg, 1)
-                        Source     = $pmCsv
-                    }
-                    Write-Ok ("avg={0}ms  p99={1}ms  p99.9={2}ms  ~{3} FPS" -f `
-                        $frameResults.AvgMs, $frameResults.P99Ms, $frameResults.P999Ms, $frameResults.AvgFPS)
                 } else {
-                    Write-Warn 'PresentMon CSV parse edilemedi veya yeterli frame yok (CS2 çalışıyor muydun?).'
+                    Write-Warn 'PresentMon CSV parse edilemedi veya yeterli frame yok (CS2 calisiyor muydu?).'
+                    Write-Info 'CSV basligini kontrol edin: frame time kolonu bekleniyor (FrameTime veya MsBetweenPresents).'
                 }
             } catch {
                 Write-Warn "PresentMon CSV okunamadı: $($_.Exception.Message)"
@@ -372,14 +397,75 @@ if (-not $SkipGame) {
     if ($capframex) {
         Write-Step 'CapFrameX bulundu'
         Write-Info "Yol: $capframex"
-        Write-Info 'CapFrameX CLI ile otomatik yakalama mümkündür; ayrıca elle benchmark yapabilirsin.'
-        Write-Info 'Proje dokümanı: RAPOR.md bölüm 2 (ölçüm protokolü).'
+        Write-Info 'CapFrameX kendi arayuzunden benchmark yapip CSV olarak disa aktarin;'
+        Write-Info "sonra bu scripti -FrameCsv <dosya.csv> ile calistirin. Ayristirma otomatiktir."
     }
 
     if ($hwinfo) {
         Write-Step 'HWiNFO sensör kaydı (referans)'
         Write-Info "HWiNFO bulundu: $hwinfo"
         Write-Info 'HWiNFO sensör CSV kaydını aynı klasöre kaydet; WHEA kayıtlarını kontrol et.'
+    }
+}
+
+# CapFrameX / PresentMon CSV disaridan aliniyorsa ayni istatistikler uretilir.
+# -SkipGame kullanilsa da calisir (canli yakalama yapmadan analiz icin).
+if ($FrameCsv) {
+    Write-Step "Frame CSV analizi: $FrameCsv"
+    try {
+        $rows = Import-Csv $FrameCsv -ErrorAction Stop
+        $imported = Get-FrameTimeStats -Rows $rows
+        if ($imported) {
+            $imported['Tool'] = 'Imported CSV'
+            $imported['Source'] = $FrameCsv
+            if ($frameResults) {
+                $frameResults['Imported'] = $imported
+            } else {
+                $frameResults = $imported
+            }
+            Write-Ok ("CSV: avg={0}ms  1%low={1}FPS  0.1%low={2}FPS  p99={3}ms  (kolon: {4})" -f `
+                $imported.AvgMs, $imported.Low1FPS, $imported.Low01FPS, $imported.P99Ms, $imported.Column)
+            if ($imported.Contains('InputLatencyAvgMs')) {
+                Write-Ok ("CSV input-to-photon: ort={0}ms  p99={1}ms" -f `
+                    $imported.InputLatencyAvgMs, $imported.InputLatencyP99Ms)
+            }
+        } else {
+            Write-Warn 'Frame CSV içinden frame time kolonu bulunamadı.'
+        }
+    } catch {
+        Write-Warn "Frame CSV okunamadı: $($_.Exception.Message)"
+    }
+}
+
+# ---------------------------------------------------------------------------
+# NIC counter DELTA (ölçüm aralığındaki paket kaybı)
+# ---------------------------------------------------------------------------
+Write-Step 'NIC statistics (delta)'
+$nicAfter = Get-NicSnapshot
+foreach ($name in $nicAfter.Keys) {
+    $after = $nicAfter[$name]
+    $before = $null
+    if ($nicBefore.ContainsKey($name)) { $before = $nicBefore[$name] }
+    $rxDisc = if ($before) { $after.ReceivedDiscarded - $before.ReceivedDiscarded } else { $after.ReceivedDiscarded }
+    $rxErr  = if ($before) { $after.ReceivedErrors    - $before.ReceivedErrors }    else { $after.ReceivedErrors }
+    $txDisc = if ($before) { $after.OutboundDiscarded - $before.OutboundDiscarded } else { $after.OutboundDiscarded }
+    $txErr  = if ($before) { $after.OutboundErrors    - $before.OutboundErrors }    else { $after.OutboundErrors }
+    $nicStats += [ordered]@{
+        Name              = $after.Name
+        LinkSpeed         = $after.LinkSpeed
+        RxDiscardedDelta  = $rxDisc
+        RxErrorsDelta     = $rxErr
+        TxDiscardedDelta  = $txDisc
+        TxErrorsDelta     = $txErr
+        RxBytesDelta      = ($after.ReceivedBytes - $(if ($before) { $before.ReceivedBytes } else { 0 }))
+        TxBytesDelta      = ($after.SentBytes     - $(if ($before) { $before.SentBytes }     else { 0 }))
+    }
+    $total = $rxDisc + $rxErr + $txDisc + $txErr
+    if ($total -gt 0) {
+        Write-Warn ("{0}: ölçüm aralığında {1} hata/discard (rx_disc={2} rx_err={3} tx_disc={4} tx_err={5})" -f `
+            $after.Name, $total, $rxDisc, $rxErr, $txDisc, $txErr)
+    } else {
+        Write-Ok ("{0}: ölçüm aralığında hata/discard yok" -f $after.Name)
     }
 }
 
@@ -428,20 +514,20 @@ if ($gpuTelemetry) {
 if ($netResults.Count -gt 0) {
     $md.Add('## Ağ')
     $md.Add('')
-    $md.Add('| Hedef | Kayıp % | Ort ms | Min ms | Max ms | Jitter ms |')
-    $md.Add('|---|---:|---:|---:|---:|---:|')
+    $md.Add('| Hedef | Kayıp % | Ort ms | Min ms | Max ms | Jitter ms | StdDev ms | Örnek | Timeout |')
+    $md.Add('|---|---:|---:|---:|---:|---:|---:|---:|---:|')
     foreach ($r in $netResults) {
-        $md.Add("| $($r.Target) | $($r.PacketLoss) | $($r.AvgMs) | $($r.MinMs) | $($r.MaxMs) | $($r.JitterMs) |")
+        $md.Add("| $($r.Target) | $($r.PacketLoss) | $($r.AvgMs) | $($r.MinMs) | $($r.MaxMs) | $($r.JitterMs) | $($r.StdDevMs) | $($r.Samples) | $($r.Timeouts) |")
     }
     $md.Add('')
 }
 if ($nicStats.Count -gt 0) {
-    $md.Add('## NIC istatistikleri')
+    $md.Add('## NIC istatistikleri (ölçüm aralığı farkı)')
     $md.Add('')
     $md.Add('| Adapter | Link | Rx discarded | Rx errors | Tx discarded | Tx errors |')
     $md.Add('|---|---|---:|---:|---:|---:|')
     foreach ($n in $nicStats) {
-        $md.Add("| $($n.Name) | $($n.LinkSpeed) | $($n.ReceivedDiscarded) | $($n.ReceivedErrors) | $($n.OutboundDiscarded) | $($n.OutboundErrors) |")
+        $md.Add("| $($n.Name) | $($n.LinkSpeed) | $($n.RxDiscardedDelta) | $($n.RxErrorsDelta) | $($n.TxDiscardedDelta) | $($n.TxErrorsDelta) |")
     }
     $md.Add('')
 }
@@ -452,6 +538,10 @@ if ($frameResults) {
     $md.Add('|---|---:|')
     foreach ($k in $frameResults.Keys) { if ($k -ne 'Source') { $md.Add("| $k | $($frameResults[$k]) |") } }
     $md.Add('')
+    if ($frameResults.Contains('Low1FPS')) {
+        $md.Add('> **Kabul kriterleri:** 1% low ≥ 280 FPS · p99 ≤ 4.0 ms · 0 paket kaybı')
+        $md.Add('')
+    }
 }
 $mdPath = Join-Path $runDir 'summary.md'
 $md -join "`r`n" | Set-Content -Path $mdPath -Encoding UTF8

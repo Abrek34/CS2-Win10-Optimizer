@@ -83,6 +83,26 @@ Describe 'Regresyon: gecmiste bulunan gercek hatalar' {
         }
     }
 
+    Context 'GPU profil geri alinabilirligi' {
+
+        BeforeAll {
+            $gpu = Get-Content (Join-Path $root 'Get-Cs2GpuProfile.ps1') -Raw
+        }
+
+        It 'Durum dosyasi zaman damgali adla yazilir (ikinci uygulama orijinali ezmez)' {
+            $gpu | Should -Match 'CS2-GpuProfile-\$Label-\$script:Stamp-state\.json'
+        }
+
+        It 'Revert en yeni durum dosyasini glob ile bulur' {
+            $gpu | Should -Match 'CS2-GpuProfile-\$Label-\*-state\.json'
+            $gpu | Should -Match 'Sort-Object LastWriteTime -Descending'
+        }
+
+        It 'Revert sabit dosya adini aramaz (dosya timestamp ile adlandirilir)' {
+            $gpu | Should -Not -Match 'Test-Path \$script:StateFile'
+        }
+    }
+
     Context 'Network: guvenli varsayilanlar' {
 
         It 'Ana script: Flow Control yalnizca explicit -DisableFlowControl ile kapanir' {
@@ -119,5 +139,33 @@ Describe 'Tum scriptler icin ortak kurallar' {
         $content = Get-Content $_.FullName -Raw
         $content | Should -Match 'catch\s*\{[^}]*Write-Warning'
         $content | Should -Match 'if \(-not \(Get-Command -Name ''Write-Info'''
+    }
+}
+
+Describe 'Dosya kodlamasi: UTF-8 BOM' {
+
+    BeforeDiscovery {
+        $encRoot = Split-Path -Parent $PSScriptRoot
+        $encFiles = @(
+            Get-ChildItem -Path $encRoot -Filter '*.ps1' -File
+            Get-ChildItem -Path $encRoot -Filter '*.psm1' -File
+            Get-ChildItem -Path (Join-Path $encRoot 'tests') -Filter '*.ps1' -File
+        )
+    }
+
+    It '$_: Turkce karakter iceren dosyada UTF-8 BOM var' -ForEach $encFiles {
+        # Windows PowerShell 5.1, BOM'suz .ps1 dosyasini sistem ANSI kodlamasiyla
+        # (cp1254) okur. Turkce karakterler bozulur ve bazi UTF-8 bayt dizileri
+        # tirnak gibi karakterlere denk gelip sozdizimini bozabilir.
+        $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
+        $hasNonAscii = $false
+        for ($i = 0; $i -lt $bytes.Length; $i++) {
+            if ($bytes[$i] -gt 127) { $hasNonAscii = $true; break }
+        }
+        if ($hasNonAscii) {
+            $bytes[0] | Should -Be 0xEF
+            $bytes[1] | Should -Be 0xBB
+            $bytes[2] | Should -Be 0xBF
+        }
     }
 }

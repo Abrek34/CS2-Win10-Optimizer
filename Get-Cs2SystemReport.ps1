@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   CS2-Win10-Optimizer için sistem envanteri ve mevcut ayar raporu üretir.

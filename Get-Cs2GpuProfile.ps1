@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   RTX 3070 (ve diğer NVIDIA GPU) için güvenli power-limit ve undervolt profili yönetimi.
@@ -64,7 +64,7 @@ param(
 $ErrorActionPreference = 'Continue'
 $script:Stamp   = Get-Date -Format 'yyyyMMdd-HHmmss'
 $script:Desktop = [Environment]::GetFolderPath('Desktop')
-$script:StateFile = Join-Path $script:Desktop "CS2-GpuProfile-$Label-state.json"
+$script:StateFile = Join-Path $script:Desktop "CS2-GpuProfile-$Label-$script:Stamp-state.json"
 try {
     Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
 } catch {
@@ -117,15 +117,20 @@ function Get-GpuTelemetry {
 # ---------------------------------------------------------------------------
 if ($Revert) {
     Write-Step 'Revert: GPU power limit'
-    if (-not (Test-Path $script:StateFile)) {
-        Write-Err "No saved GPU state found: $script:StateFile"
+    # State dosyasi her uygulamada YENI dosya olarak yazilir (zaman damgali ad).
+    # Boylece ikinci bir uygulama orijinal degeri EZMEZ; revert en yeni dosyayi kullanir.
+    $stateFiles = @(Get-ChildItem -Path $script:Desktop -Filter "CS2-GpuProfile-$Label-*-state.json" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending)
+    if ($stateFiles.Count -eq 0) {
+        Write-Err "No saved GPU state found (CS2-GpuProfile-$Label-*-state.json)."
         exit 1
     }
-    $state = Get-Content $script:StateFile -Raw | ConvertFrom-Json
+    $state = Get-Content $stateFiles[0].FullName -Raw | ConvertFrom-Json
     $smi = Get-SmiPath
     if (-not $smi) { Write-Err 'nvidia-smi not found.'; exit 1 }
     & $smi --power-limit="$($state.OriginalPowerLimit)" 2>&1 | Write-Host
     Write-Ok "Power limit restored: $($state.OriginalPowerLimit) W"
+    Write-Info "State file: $($stateFiles[0].Name)"
     exit 0
 }
 

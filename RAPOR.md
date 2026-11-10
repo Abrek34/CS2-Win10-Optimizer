@@ -1,6 +1,6 @@
 # CS2 / Windows 10 / NVIDIA Optimizasyon Raporu
 
-> **Sürüm:** v1.13.0 — 10 Kasım 2026  
+> **Sürüm:** v1.14.0 — 10 Kasım 2026  
 > **Durum:** Çalışma dosyası. Uygulananlar, planlananlar ve ölçüm sonuçları bu dosyada takip edilecek.  
 > **Kapsam:** Windows 10 işletim sistemi, NVIDIA sürücü/Inspector katmanı, BIOS/firmware ve ölçüm metodolojisi.  
 > **Kapsam dışı:** CS2 oyun içi video/Crosshair/autoexec ayarları.
@@ -586,8 +586,8 @@ Her halka ayrı ölçülür. Kayıp genelde **render queue** veya **CPU tick** k
 | Araç | Ölçtüğü | Not |
 |---|---|---|
 | **NVIDIA Reflex Analyzer** | Gerçek click-to-photon (ms) | En güvenilir referans; 360 Hz'te 2.78 ms/panel sınırı. |
-| **PresentMon** | Present latency / frame time | Reflex Analyzer yoksa en iyi ikame. |
-| **CapFrameX** | 1% / 0.1% low, p99 frametime | Akıcılığın ana metriği. |
+| **PresentMon** | Present latency / frame time | Reflex Analyzer yoksa en iyi ikame. `Get-Cs2Benchmark.ps1` 2.x/1.x otomatik tanır ve **input-to-photon** da raporlar (bkz. 8B). |
+| **CapFrameX** | 1% / 0.1% low, p99 frametime | Akıcılığın ana metriği. CSV'sini `-FrameCsv` ile projeye aktar. |
 | **MouseTester / Mouse Rate Checker** | Polling rate doğrulama | 1000 Hz ayarının gerçekten uygulandığını doğrular. |
 | **LatencyMon** | DPC/ISR kaynakları | Interrupt Moderation A/B testinde belirleyici. |
 
@@ -603,6 +603,122 @@ Her halka ayrı ölçülür. Kayıp genelde **render queue** veya **CPU tick** k
 8. **VBS/HVCI**: 5-10% kazanç mümkün; güvenlik trade-off'unu kabul ederek test et.
 
 > **Ölçüm sırası önemli:** 3 run baseline → bir değişiklik → 3 run → karar. CapFrameX'te ortalama FPS değil **1% low** ve **frametime p99**'a bak.
+
+### 8B. Ölçüm motorundaki düzeltmeler (v1.14.0)
+
+> Bu bölüm, proje **ilk kez gerçek Windows'ta çalıştırılmadan önce** yapılan kod
+> denetiminde bulunan ve **doğrudan ölçüm sonucunu bozan** hataları belgeler.
+> Hepsi regresyon testleriyle kilitlendi (`tests/Olcum.Tests.ps1`).
+
+#### 8B.1 PresentMon CSV kolon uyumsuzluğu (ölçüm hiç çalışmıyordu)
+
+PresentMon 1.x CSV'sinde `FrameTime` kolonu vardır. **PresentMon 2.x'in varsayılan
+metriklerinde bu kolon YOKTUR**; karşılığı `MsBetweenPresents`'tir.
+
+Eski kod yalnızca `$r.FrameTime` okuyordu → bugün indirilen PresentMon 2.x ile
+**0 frame parse ediliyor**, uyarı "CSV parse edilemedi" olarak çıkıyor ve ölçüm
+sessizce boş kalıyordu. Üstelik script `CapFrameX varsa otomatik benchmark
+başlatılır` diye dokümantasyonlanmıştı, oysa CapFrameX yalnızca bilgi mesajı
+basıyordu — **belgede vaat edilen otomasyon hiç yoktu**.
+
+Düzeltme: `Get-FrameTimeStats` adlı modül fonksiyonu aday kolon listesinden
+bulunabilen ilk frame time kolonunu seçer (`FrameTime` → `MsBetweenPresents`),
+CS2 dışı satırları filtreler ve **1% low / 0.1% low** hesaplar.
+
+#### 8B.2 Ondalık ayracı — Türkçe locale'de 1000 kat hatalı değer
+
+`[double]::TryParse("2.780", [ref]$v)` iki argümanlı overload'ı **CurrentCulture**
+kullanır. Türkçe locale'de `.` binlik ayracı olduğu için:
+
+| Locale | `TryParse("2.780")` | Sonuç |
+|---|---:|---|
+| tr-TR | **2780** | 1000× hatalı frame time → 0.3 FPS |
+| InvariantCulture | 2.78 | doğru |
+
+Yani ölçüm motoru **Türkçe Windows'ta** tamamen yanlış değer üretiyordu.
+Düzeltme: tüm sayı ayrıştırmaları `InvariantCulture` ile yapılıyor.
+
+> Not: `[double]'2.780'` gibi PowerShell **cast**'i zaten invariant çalışıyor.
+> Sorun yalnızca statik `TryParse` overload'ındaydı — ama `Get-Cs2Benchmark.ps1`
+> tam olarak onu kullanıyordu.
+
+#### 8B.3 ping çıktısı yerelleştirmesi
+
+| | İngilizze | Türkçe |
+|---|---|---|
+| Yanıt | `time=14 ms` | `süre=14ms` |
+| Özet | `Lost = 0 (0% loss)` | `Kaybedilen = 0 (0% kayıp)` |
+
+Eski regex'ler (`time[=<]...`, `\((\d+)%\s+(packet\s+)?loss\)`) **Türkçe
+Windows'ta hiç eşleşmiyordu** → RTT listesi boş, kayıp `null`, jitter `null`.
+Ağ ölçümü tamamen işlevsizdi.
+
+Düzeltme: `ConvertFrom-PingOutput` — yanıt satırları IPv4 adresi içeren satır
+olarak tanımlanır (dil bağımsız), özet bloğu `statistik/statistics` başlığından
+ayrılır, kayıp yüzdesi parantez içinden okunur.
+
+#### 8B.4 Jitter tanımı hatalıydı
+
+Eski formül: `ortalama − en küçük`. Bu **jitter değildir**; ani bir yüksek
+değer (outlier) varsa şişer, düzenli salınım varsa küçük görünür.
+
+Doğru tanım (RFC 3550 mantığı): **ardışık RTT örnekleri arasındaki mutlak
+farkların ortalaması**. `Get-Cs2Benchmark.ps1` artık `StdDevMs` de raporluyor.
+
+#### 8B.5 powercfg etiketi yerelleştirmesi
+
+`powercfg /query` çıktısındaki "Current AC Power Setting Index" etiketi
+Türkçe Windows'ta "Mevcut AC Güç Ayarı Dizinü" olur. Modülün
+`Get-PowerCfgValue` fonksiyonu bu etikete bağlıydı → **tüm güç planı
+kontrolleri Türkçe Windows'ta sessizce `null` döndürüyordu** (hedef profil
+denetimi de aynı regex'i kullanıyordu).
+
+Düzeltme: `ConvertFrom-PowerCfgText` — etikete güvenmez; hex değer içeren
+satırları toplar, `AC`/`CA` etiketli satırı tercih eder, yoksa **ilk** hex
+satırı kullanır (powercfg AC'yi her zaman DC'den önce yazar).
+
+#### 8B.6 NIC sayaçları mutlak değil, fark olarak raporlanır
+
+Eski kod `ReceivedDiscardedPackets` gibi **mutlak** sayaçları okuyordu; makine
+günlerce açıksa bu sayılar büyük olur ama ölçüm aralığındaki kayıp anlamına
+gelmez. Artık sayaçlar ölçüm **başında ve sonunda** okunup **farkı**
+raporlanıyor (`RxDiscardedDelta` vb.).
+
+#### 8B.7 CapFrameX CSV içe aktarma
+
+CapFrameX'in CLI'si güvenilir biçimde otomatize edilemiyor; bu yüzden
+**bilinçli olarak** CLI otomasyonu iddiasından vazgeçildi. Bunun yerine:
+CapFrameX'te benchmark'u elle çalıştırıp CSV'yi dışa aktarın, sonra
+`Get-Cs2Benchmark.ps1 -FrameCsv <dosya.csv>` ile aynı istatistikler alınır.
+`Get-FrameTimeStats` her iki CSV şemasını da tanır (PresentMon 1.x `FrameTime`,
+PresentMon 2.x `MsBetweenPresents`).
+
+#### 8B.8 Yeni raporlanan metrikler
+
+| Metrik | Kaynak | Neden önemli |
+|---|---|---|
+| **1% low FPS** | frame time serisi | Projenin ana akıcılık kriteri (≥ 280 FPS) |
+| **0.1% low FPS** | frame time serisi | Stutter tespiti |
+| **p99 / p99.9** | frame time serisi | Hedef: p99 ≤ 4.0 ms |
+| **Input-to-photon (ort/p99)** | `MsAllInputToPhotonLatency` | **Projenin asıl hedefi**: input lag |
+| **Display latency** | `DisplayLatency` | Render queue gecikmesi |
+| **Jitter + StdDev** | ping serisi | Hedef: jitter < 5 ms |
+
+> `MsAllInputToPhotonLatency` ölçümü PresentMon 2.x ile gelir ve **mouse → photon**
+> zincirinin uçtan uca süresini verir. Bu, projenin "hissedilen fark" yerine
+> sayısal kanıt ilkesinin en doğrudan ölçümüdür.
+
+#### 8B.9 Diğer düzeltmeler
+
+- **PresentMon 2.x argümanları:** `--terminate_after_timed` ve `--no_console_stats`
+  yalnızca 2.x'te vardır → sürüm `VersionInfo.FileVersion` ile tespit edilip
+  koşullu ekleniyor (1.x uyumluluğu bozulmaz).
+- **GPU state dosyası:** `CS2-GpuProfile-<label>-state.json` sabit adıydı; ikinci
+  bir uygulama **orijinal güç limitini eziyordu**, geri alma bozuluyordu. Artık
+  zaman damgalı ad kullanılıyor, revert en yeni dosyayı buluyor.
+- **Sistem snapshot'ı:** Tek bir `Get-CimInstance` hatası, hashtable literal'i
+  düşürüp **tüm snapshot'ı boş** bırakıyordu. Artık her değer ayrı ayrı,
+  hata toleranslı alınır.
 
 ---
 

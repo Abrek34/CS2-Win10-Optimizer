@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   "CS2 Mükemmel Sistem" hedef profilini denetler: sistem hedefe uygun mu?
@@ -96,9 +96,28 @@ function Get-PowerCfgIndexValue {
     if ($parts.Count -eq 0) { return $null }
     $out = & powercfg.exe /query SCHEME_CURRENT @parts 2>$null
     if (-not $out) { return $null }
-    $m = [regex]::Match(($out -join "`n"), 'Current AC Power Setting Index:\s*(0x[0-9a-fA-F]+)')
-    if ($m.Success) { return [Convert]::ToInt32($m.Groups[1].Value, 16) }
-    return $null
+    $text = ($out -join "`n")
+    # Dil-bağımsız ayrıştırma: "Current AC Power Setting Index" etiketi Türkçe
+    # Windows'ta "Mevcut AC Güç Ayarı Dizinü" olur; etikete güvenmek
+    # tüm güç planı kontrollerini sessizce boş döndürürdü.
+    if (Get-Command -Name 'ConvertFrom-PowerCfgText' -ErrorAction SilentlyContinue) {
+        return (ConvertFrom-PowerCfgText -Text $text)
+    }
+    # Modül yoksa: inline fallback (hex satırından AC/CA etiketi tercih edilir)
+    $pairs = @()
+    foreach ($line in ($text -split "`r?`n")) {
+        $m = [regex]::Match($line, '(?i)(0x[0-9a-f]{8})')
+        if ($m.Success) {
+            $pairs += [pscustomobject]@{
+                Label = $line.Substring(0, $m.Index)
+                Value = $m.Groups[1].Value
+            }
+        }
+    }
+    if ($pairs.Count -eq 0) { return $null }
+    $ac = $pairs | Where-Object { $_.Label -match '(?i)\b(ac|ca)\b' } | Select-Object -First 1
+    if (-not $ac) { $ac = $pairs[0] }
+    return [Convert]::ToInt32($ac.Value, 16)
 }
 
 function Get-ActiveSchemeName {
