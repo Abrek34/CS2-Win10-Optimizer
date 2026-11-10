@@ -586,6 +586,41 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 - ❌ SysMain/Search'ü körlemesine kapatmak.
 - ❌ Tüm Xbox/telemetry servislerini topluca disable etmek.
 
+### 16.1 İnternette önerilen ama projede reddedilen tweak'ler
+
+Aşağıdakiler internette “FPS tweak” olarak öneriliyor; ancak kanıt/zarar dengesi veya güvenlik nedeniyle projeye **eklenmedi**:
+
+- ❌ Nagle disable (`TcpAckFrequency`, `TCPNoDelay`, `TcpDelAckTicks`) — CS2 UDP; etkisi yok/yanlış yönlü olabilir.
+- ❌ `NetworkThrottlingIndex = 0xFFFFFFFF` — NDIS.sys DPC latency'sini artırabilir.
+- ❌ Prefetch disable — SSD'de uygulama açılışını yavaşlatabilir; FPS etkisi düşük.
+- ❌ CPU Throttle States disable — yol/doğrulama eksik; termal risk yüksek.
+- ❌ GPU Preemption disable — frame pacing iddiası var; TDR/black screen riski.
+- ❌ HDCP disable — streaming hizmetlerini bozabilir; FPS etkisi zayıf.
+- ❌ TSX enable — donanıma bağlı; güvenlik/uyumluluk riski.
+- ❌ Active Probing disable — arka plan ağ kontrolünü kapatır; “No internet” uyarısı kozmetik olabilir.
+- ❌ Mouse/Keyboard Data Queue Size düşürme — sabit değer güvenli değil; input drop riski.
+- ❌ Delete Logs / Delete Temp scriptleri — sistem/uygulama loglarını ve geçici dosyaları topluca siler.
+- ❌ Service toplu disable (FontCache, WIA, WerSvc, PCA vb.) — sistem işlevlerini bozabilir.
+- ❌ SvcHostSplitThresholdInKB tweak — performans kazancı şüpheli; svchost sayısını artırır.
+- ❌ ABDO/üçüncü taraf NVIDIA `.nip` profilleri — base profile'e uygular; CS2 profiline değil.
+
+### 16.2 Opsiyonel / ölçülebilir tweak'ler (varsayılan değil)
+
+Bu ayarlar sadece ölçümle değerlendirilmeli; varsayılan olarak uygulanmaz:
+
+- USB Selective Suspend registry seçeneği:
+  - Yol: `HKLM\SYSTEM\CurrentControlSet\Services\USB`
+  - Değer: `DisableSelectiveSuspend = 1`
+  - Not: Projede zaten `powercfg` ile USB selective suspend kapatılıyor; bu registry alternatifidir.
+- Timer Coalescing:
+  - Yol: `HKLM\SYSTEM\CurrentControlSet\Control\Power`
+  - Değer: `CoalescingTimerInterval = 0`
+  - Not: Sadece LatencyMon'da timer coalescing sorunu varsa test edilmeli; güç/ısı trade-off'u vardır.
+- Driver search off:
+  - Yol: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching`
+  - Değer: `SearchOrderConfig = 0`
+  - Not: Performans değil; sürücü kurulum davranışını değiştirir. İsteğe bağlı.
+
 ---
 
 ## 17. Geri alma ve yedekleme
