@@ -14,15 +14,15 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 |---|---|---|
 | **CPU** | Intel Core i9-9900K, 8 çekirdek / 16 thread, Coffee Lake Refresh, LGA1151 | 5.0 GHz fixed, ring 4.7, C-states/EPP, HT A/B testi |
 | **CPU soğutma** | **Doldurulacak** (hava/sıvı, model) | 5.0 GHz ve C-states off için termal headroom |
-| **Anakart** | Z390 yonga seti, LGA1151 | PCIe 3.0, resmî ReBAR yok, Above 4G/ASPM ayarları |
+| **Anakart** | **ASUS Prime Z390-A** (Z390, LGA1151) | PCIe 3.0, resmî ReBAR yok, Above 4G/ASPM ayarları |
 | **RAM** | 64 GB DDR4-4000, CL18-22-22-42 | 4000 MHz IMC yükü, dual-rank/4 DIMM stabilitesi, tRFC/tREFI |
-| **RAM düzeni** | **Doldurulacak:** 2×32 GB mı, 4×16 GB mı? | 4 DIMM / dual-rank ise 4000 riski artar |
+| **RAM düzeni** | **2×32 GB DDR4-4000 CL18-22-22-42** (dual-rank henüz bilinmiyor) | 2 DIMM = IMC yükü 4×16'dan daha düşük; 4000 CL18 stabilite TM5/Karhu ile onaylanacak |
 | **GPU** | NVIDIA RTX 3070, 8 GB GDDR6, Ampere | Prefer max performance, undervolt, shader cache, 8 GB VRAM sınırı |
-| **GPU modeli** | **Doldurulacak:** FE / AIB (ASUS, MSI, Gigabyte vb.) | Power limit, fan eğrisi, VBIOS |
+| **GPU modeli** | **RTX 3070 8 GB GDDR6** (AIB/FE modeli henüz bilinmiyor) | Power limit, fan eğrisi, VBIOS |
 | **Depolama** | **Doldurulacak:** NVMe/SATA, model | Disk idle, SysMain/Search değerlendirmesi |
 | **OS** | Windows 10 22H2 (build 19045) | GameDVR/FSO/HAGS/power plan; destek dışı |
 | **Monitör** | **Doldurulacak:** çözünürlük + Hz | fps cap, G-Sync, Reflex kararları |
-| **Ağ** | **Doldurulacak:** Ethernet/Wi-Fi, router | NIC advanced properties, SQM/QoS |
+| **Ağ** | **Ethernet (kablolu), router: ASUS RT-AX82U** | NIC advanced properties, SQM/QoS |
 | **PSU** | **Doldurulacak:** model/watt | 5.0 GHz + RTX 3070 transient yükleri |
 | **Kasa/hava akışı** | **Doldurulacak** | RAM/VRM/GPU sıcaklıkları |
 
@@ -119,7 +119,7 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 2. RAM 4000 CL18'in stabil olduğu **doğrulanmadı**; TM5/Karhu sonucu bekleniyor.
 3. Monitör çözünürlük/Hz ve G-Sync durumu **bilinmiyor**.
 4. CS2'de Reflex'in açık/kapalı olduğu **bilinmiyor**.
-5. Ağın Ethernet mi Wi-Fi mi olduğu **bilinmiyor**.
+5. Ağ: **Ethernet, router ASUS RT-AX82U**.
 6. Windows 10 22H2 build 19045 kabul edildi.
 7. NVIDIA sürücü sürümü **bilinmiyor**; Game Ready varsayıldı.
 8. CS2 Steam üzerinden kurulu kabul edildi.
@@ -133,7 +133,7 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 - [ ] Monitör çözünürlüğü + Hz
 - [ ] G-Sync / FreeSync uyumluluğu
 - [ ] CS2 Reflex açık/kapalı
-- [ ] RAM 2×32 mi, 4×16 mı; dual-rank mi
+- [x] RAM düzeni: **2×32 GB** onaylandı; dual-rank mı henüz bilinmiyor
 - [ ] 4000 CL18 TM5/Karhu stabil mi
 - [ ] CPU 5.0 GHz Vcore/LLC ve sıcaklıklar
 - [ ] Ring 4.7 stabil mi

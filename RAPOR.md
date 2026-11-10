@@ -27,12 +27,12 @@
 | Bileşen | Değer / Not |
 |---|---|
 | CPU | Intel Core i9-9900K, 8C/16T, 5.0 GHz fixed |
-| Anakart | Z390 (PCIe 3.0, resmî ReBAR yok) |
-| GPU | NVIDIA RTX 3070, 8 GB GDDR6 |
-| RAM | 64 GB, 4000 MHz CL18-22-22-42 |
+| Anakart | **ASUS Prime Z390-A** (Z390, LGA1151, PCIe 3.0, resmî ReBAR yok) |
+| GPU | **NVIDIA RTX 3070 8 GB GDDR6** (AIB/FE modeli henüz bilinmiyor) |
+| RAM | **64 GB (2×32 GB) DDR4-4000 CL18-22-22-42** (dual-rank bilinmiyor) |
 | OS | Windows 10 22H2 (destek dışı; tüketici ESU penceresi Ekim 2026'da kapandı) |
-| Monitör | **Doldurulacak:** çözünürlük + Hz |
-| Ağ | **Doldurulacak:** Ethernet/Wi-Fi, router modeli |
+| Monitör | **Henüz bilinmiyor:** çözünürlük + Hz (fps cap/G-Sync kararı için gerekli) |
+| Ağ | **Ethernet (kablolu), router: ASUS RT-AX82U** |
 | CS2 yolu | Script otomatik buluyor; gerekirse `-Cs2Path` ile verilecek |
 
 ### 1.1 Sistem envanter raporu (Get-Cs2SystemReport.ps1)
