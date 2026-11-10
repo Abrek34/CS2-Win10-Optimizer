@@ -3,6 +3,25 @@
 Tüm önemli değişiklikler bu dosyada belgelenir.
 Format: [Semantic Versioning](https://semver.org/lang/tr/).
 
+## [v1.12.1] — 2026-11-10
+
+### Eklenen
+- `docs/INDIRME.md`: private repo release indirme rehberi.
+  - Deponun private olması nedeniyle `releases/download/...` URL'leri **giriş
+    yapmadan 404** döndürür. Bu bir hata değil, GitHub davranışı.
+  - 4 alternatif indirme yolu: GitHub arayüzü, `gh release download`,
+    `gh api` ile asset çekme, doğrudan clone.
+  - SHA256 doğrulama komutları ve v1.12.0 için beklenen hash.
+
+### Doğrulama (gerçek indirme testi)
+Release asset'ı GitHub API'sinden indirildi ve test edildi:
+  - ZIP bütünlüğü: OK (unzip -t, hata yok)
+  - ZIP içeriği ↔ repo: 25/25 dosya byte-byte aynı
+  - Modül import (temiz indirme): 37 fonksiyon, OK
+  - Get-Cs2TargetCheck.ps1: Markdown + JSON üretti, OK
+  - Get-Cs2AimMatrix.ps1: doğru DPI matrisi, OK
+  - SHA256SUMS: eşleşiyor
+
 ## [v1.12.0] — 2026-11-10
 
 ### Düzeltilen (tam proje denetimi sonucu)
