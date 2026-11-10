@@ -687,6 +687,54 @@ Bu soruların çoğuna `Get-Cs2SystemReport.ps1` ile üretilen rapor (monitör �
 
 ---
 
+## 19. GameBoost v3 incelemesi (harici tweak pack)
+
+GameBoost v3, i9-9900K / Z390-A PRO / RTX 3070 / 360 Hz hedefli bir `.bat` + `.nip` paketidir. Backup/restore ve donanım algılama içermesi iyi; ancak bizim projenin çoğu ayarını zaten içeriyor ve bazı riskli değerler var.
+
+### 19.1 Projede zaten olanlar
+- Ultimate Performance / High Performance güç planı
+- PCIe ASPM off, core parking off, USB selective suspend off
+- Game DVR / AppCapture / Game Bar off, Game Mode on
+- HAGS on/off
+- FSO off
+- Win32PrioritySeparation = 38
+- SystemResponsiveness = 10
+- PowerThrottlingOff = 1
+- Mouse acceleration off
+- Visual effects = performans
+- Storage Sense kapatma
+- Arka plan uygulama kapatma
+- DNS flush
+- HVCI/VBS kapatma (opsiyonel, güvenlik trade-off'u)
+- RTX 3070 NVIDIA panel önerileri
+
+### 19.2 Projeye eklenebilecek opsiyonel maddeler
+
+| Madde | Değer / Not | Risk |
+|---|---|---|
+| MPO disable | `HKLM\SOFTWARE\Microsoft\Windows\Dwm\OverlayTestMode = 5` | DWM overlay katmanlarını kapatır; flicker/stutter için A/B test |
+| Storage Sense disable | `HKCU\...\StoragePolicy\01 = 0` | Arka plan temizlik I/O'sunu engeller; opsiyonel |
+| Background apps disable | `HKCU\...\BackgroundAccessApplications\GlobalUserDisabled = 1` | Arka plan uygulama yükünü azaltır |
+| VRR sistem geneli | `DirectXUserGlobalSettings = SwapEffectUpgradeEnable=1;VRROptimizeEnable=1/0` | Sadece VRR destekli monitörde test et |
+| MenuShowDelay / StartupDelay | `0` | Kozmetik; performans etkisi düşük |
+
+### 19.3 Projeye eklenmemesi gerekenler
+- `NetworkThrottlingIndex = 0xFFFFFFFF` (projede ❌)
+- Nagle disable (projede ❌; CS2 UDP)
+- Service toplu disable (FontCache, WIA, WerSvc, PCA vb.) (projede ❌)
+- MPO disable topluca uygulama (opsiyonel A/B dışında ❌)
+- `RTX3070.nip` base profile importu (üçüncü taraf; CS2 profiline değil base profile'e uygular; power management mode adaptive, shader cache 4 GB)
+- `Disable HPET.cmd` içindeki `disabledynamictick yes` + `useplatformtick yes` (projede yalnızca ölçülebilir kazanç varsa)
+- `SvcHostSplitThresholdInKB` (performans kazancı şüpheli)
+
+### 19.4 Donanım uyumsuzluğu
+GameBoost BIOS rehberi **DDR4-3600 CL16** varsayıyor; bizim sistem **DDR4-4000 CL18-22-22-42**. Bu nedenle XMP, VCCIO/VCCSA, command rate ve voltaj önerileri doğrudan uygulanmamalı. Genel ilkeler (XMP açık, C-states off, Above 4G on, ReBAR) kullanılabilir.
+
+### 19.5 Değerlendirme
+GameBoost v3 iyi bir **referans** ve backup/restore yaklaşımı güzel; ancak bizim projede zaten daha güvenli ve ölçülebilir bir yapı var. GameBoost'tan alınabilecek tek anlamlı opsiyonel maddeler: **MPO disable**, **Storage Sense disable**, **background apps disable** ve **VRR sistem geneli toggle**. Bunlar da A/B test ile değerlendirilmeli.
+
+---
+
 ## Ek A — Win11Debloat inceleme özeti (önceki konu)
 
 - Resmî repo: `github.com/Raphire/Win11Debloat` (MIT, ~62k yıldız).
