@@ -14,7 +14,7 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 |---|---|---|
 | **CPU** | Intel Core i9-9900K, 8 çekirdek / 16 thread, Coffee Lake Refresh, LGA1151 | 5.0 GHz fixed, ring 4.7, C-states/EPP, HT A/B testi |
 | **CPU soğutma** | **240 mm sıvı (AIO)** | 5.0 GHz fixed için termal headroom iyi; C-states off sırasında sıcaklığı izle |
-| **Anakart** | **ASUS Prime Z390-A** (Z390, LGA1151) | PCIe 3.0, resmî ReBAR yok, Above 4G/ASPM ayarları |
+| **Anakart** | **MSI Z390-A PRO** (Z390, LGA1151) | PCIe 3.0, resmî ReBAR yok, Above 4G/ASPM ayarları |
 | **RAM** | 64 GB DDR4-4000, CL18-22-22-42 | 4000 MHz IMC yükü, dual-rank/4 DIMM stabilitesi, tRFC/tREFI |
 | **RAM düzeni** | **2×32 GB DDR4-4000 CL18-22-22-42** (dual-rank henüz bilinmiyor) | 2 DIMM = IMC yükü 4×16'dan daha düşük; 4000 CL18 stabilite TM5/Karhu ile onaylanacak |
 | **GPU** | NVIDIA RTX 3070, 8 GB GDDR6, Ampere | Prefer max performance, undervolt, shader cache, 8 GB VRAM sınırı |

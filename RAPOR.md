@@ -27,7 +27,7 @@
 | Bileşen | Değer / Not |
 |---|---|
 | CPU | Intel Core i9-9900K, 8C/16T, 5.0 GHz fixed |
-| Anakart | **ASUS Prime Z390-A** (Z390, LGA1151, PCIe 3.0, resmî ReBAR yok) |
+| Anakart | **MSI Z390-A PRO** (Z390, LGA1151, PCIe 3.0, resmî ReBAR yok) |
 | GPU | **NVIDIA RTX 3070 8 GB GDDR6** (AIB/FE modeli bilinmiyor; NVIDIA son sürüm sürücü kurulu) |
 | RAM | **64 GB (2×32 GB) DDR4-4000 CL18-22-22-42** (dual-rank bilinmiyor) |
 | Depolama | **240 GB SATA SSD** |
