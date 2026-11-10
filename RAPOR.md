@@ -28,10 +28,12 @@
 |---|---|
 | CPU | Intel Core i9-9900K, 8C/16T, 5.0 GHz fixed |
 | Anakart | **ASUS Prime Z390-A** (Z390, LGA1151, PCIe 3.0, resmî ReBAR yok) |
-| GPU | **NVIDIA RTX 3070 8 GB GDDR6** (AIB/FE modeli henüz bilinmiyor) |
+| GPU | **NVIDIA RTX 3070 8 GB GDDR6** (AIB/FE modeli bilinmiyor; NVIDIA son sürüm sürücü kurulu) |
 | RAM | **64 GB (2×32 GB) DDR4-4000 CL18-22-22-42** (dual-rank bilinmiyor) |
+| Depolama | **240 GB SATA SSD** |
+| Soğutma | **240 mm sıvı (AIO)** |
 | OS | Windows 10 22H2 (destek dışı; tüketici ESU penceresi Ekim 2026'da kapandı) |
-| Monitör | **Henüz bilinmiyor:** çözünürlük + Hz (fps cap/G-Sync kararı için gerekli) |
+| Monitör | **360 Hz** (çözünürlük henüz bilinmiyor; 360 Hz panel genellikle 1080p olur, doğrula) |
 | Ağ | **Ethernet (kablolu), router: ASUS RT-AX82U** |
 | CS2 yolu | Script otomatik buluyor; gerekirse `-Cs2Path` ile verilecek |
 
@@ -605,13 +607,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ## 18. Açık sorular / sonraki adımlar
 
-1. Monitör çözünürlüğü ve Hz? (240/360 Hz mi?)
+1. Monitör **360 Hz** onaylandı; çözünürlük henüz bilinmiyor (doğrula, genellikle 1080p).
 2. G-Sync var mı? CS2'de Reflex açık mı?
-3. RAM 4×16 mı, 2×32 mi? Dual-rank mi?
+3. RAM 2×32 GB onaylandı; dual-rank mı bilinmiyor.
 4. 4000 CL18 stabil mi? TM5/Karhu sonucu?
 5. HT on/off denendi mi?
 6. HAGS açık/kapalı hangi değerde şu an?
-7. Wi-Fi mi Ethernet mi? Router modeli?
+7. Ağ **Ethernet** onaylandı; router: ASUS RT-AX82U.
 8. Windows 11'e geçiş düşünülüyor mu?
 
 Bu soruların çoğuna `Get-Cs2SystemReport.ps1` ile üretilen rapor (monitör çözünürlük/Hz, RAM modül düzeni/hızı, NIC modeli, NVIDIA sürücü sürümü) yanıt verebilir; `SISTEM-OZELLIKLERI.md`'deki varsayımlarla karşılaştır.

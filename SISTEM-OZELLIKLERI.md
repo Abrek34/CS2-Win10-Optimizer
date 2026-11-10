@@ -13,15 +13,15 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 | Bileşen | Değer | Ayar kararlarına etkisi |
 |---|---|---|
 | **CPU** | Intel Core i9-9900K, 8 çekirdek / 16 thread, Coffee Lake Refresh, LGA1151 | 5.0 GHz fixed, ring 4.7, C-states/EPP, HT A/B testi |
-| **CPU soğutma** | **Doldurulacak** (hava/sıvı, model) | 5.0 GHz ve C-states off için termal headroom |
+| **CPU soğutma** | **240 mm sıvı (AIO)** | 5.0 GHz fixed için termal headroom iyi; C-states off sırasında sıcaklığı izle |
 | **Anakart** | **ASUS Prime Z390-A** (Z390, LGA1151) | PCIe 3.0, resmî ReBAR yok, Above 4G/ASPM ayarları |
 | **RAM** | 64 GB DDR4-4000, CL18-22-22-42 | 4000 MHz IMC yükü, dual-rank/4 DIMM stabilitesi, tRFC/tREFI |
 | **RAM düzeni** | **2×32 GB DDR4-4000 CL18-22-22-42** (dual-rank henüz bilinmiyor) | 2 DIMM = IMC yükü 4×16'dan daha düşük; 4000 CL18 stabilite TM5/Karhu ile onaylanacak |
 | **GPU** | NVIDIA RTX 3070, 8 GB GDDR6, Ampere | Prefer max performance, undervolt, shader cache, 8 GB VRAM sınırı |
-| **GPU modeli** | **RTX 3070 8 GB GDDR6** (AIB/FE modeli henüz bilinmiyor) | Power limit, fan eğrisi, VBIOS |
-| **Depolama** | **Doldurulacak:** NVMe/SATA, model | Disk idle, SysMain/Search değerlendirmesi |
+| **GPU modeli** | **RTX 3070 8 GB GDDR6** (AIB/FE modeli bilinmiyor; NVIDIA son sürüm sürücü kurulu) | Power limit, fan eğrisi, VBIOS |
+| **Depolama** | **240 GB SATA SSD** | Disk idle, SysMain/Search değerlendirmesi |
 | **OS** | Windows 10 22H2 (build 19045) | GameDVR/FSO/HAGS/power plan; destek dışı |
-| **Monitör** | **Doldurulacak:** çözünürlük + Hz | fps cap, G-Sync, Reflex kararları |
+| **Monitör** | **360 Hz** (çözünürlük bilinmiyor; genellikle 1080p, doğrula) | fps cap = 357 önerilebilir, G-Sync/Reflex kararları |
 | **Ağ** | **Ethernet (kablolu), router: ASUS RT-AX82U** | NIC advanced properties, SQM/QoS |
 | **PSU** | **Doldurulacak:** model/watt | 5.0 GHz + RTX 3070 transient yükleri |
 | **Kasa/hava akışı** | **Doldurulacak** | RAM/VRM/GPU sıcaklıkları |
@@ -117,7 +117,7 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 
 1. CPU 5.0 GHz all-core **stabil** ve soğutma yeterli kabul edildi.
 2. RAM 4000 CL18'in stabil olduğu **doğrulanmadı**; TM5/Karhu sonucu bekleniyor.
-3. Monitör çözünürlük/Hz ve G-Sync durumu **bilinmiyor**.
+3. Monitör **360 Hz** onaylandı; çözünürlük henüz bilinmiyor (genellikle 1080p, doğrula). G-Sync durumu bilinmiyor.
 4. CS2'de Reflex'in açık/kapalı olduğu **bilinmiyor**.
 5. Ağ: **Ethernet, router ASUS RT-AX82U**.
 6. Windows 10 22H2 build 19045 kabul edildi.
@@ -130,7 +130,7 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 
 ## 5. Doğrulanması gerekenler
 
-- [ ] Monitör çözünürlüğü + Hz
+- [x] Monitör **360 Hz** onaylandı; çözünürlük bilinmiyor (doğrula)
 - [ ] G-Sync / FreeSync uyumluluğu
 - [ ] CS2 Reflex açık/kapalı
 - [x] RAM düzeni: **2×32 GB** onaylandı; dual-rank mı henüz bilinmiyor
