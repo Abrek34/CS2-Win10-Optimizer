@@ -103,6 +103,18 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 
 ---
 
+### 2.7 Input / overlay / bakım (ek araştırma notları)
+
+| Ayar | Neden bu sistemde anlamlı? | Sınır / not |
+|---|---|---|
+| Enhance pointer precision off | Windows mouse acceleration; CS2 Raw Input bypass eder ama genel hijyen | Registry: `MouseSpeed=0`, `MouseThreshold1=0`, `MouseThreshold2=0` |
+| Pointer speed 6/11 | Windows çarpanını varsayılanda tut | Acceleration kapalı olsun |
+| Mouse polling 1000 Hz | 9900K için 1000/2000 Hz makul; 4000/8000 Hz CPU thread yükünü artırabilir | CS2 CPU-bound; ölçümle |
+| Steam/Discord/NVIDIA overlay off | Overlay hook'ları frametime/microstutter kaynağı olabilir | Opsiyonel A/B |
+| Shader cache bakımı | Unlimited/10 GB; düzenli silme | Stutter varsa sürücü güncellemesi sonrası bir kez temizle |
+| Memory Integrity / HVCI testi | 5-10% FPS kazancı olabilir | Güvenlik trade-off'u; WSL/Hyper-V/Docker/Sandbox kullanıyorsan yalnızca HVCI kapat |
+| VBS testi | Daha geniş güvenlik trade-off'u | Test için geçici kapat; sonra güvenlik değerlendirmesi |
+
 ## 3. Neden “sisteme özel”?
 
 - **9900K:** P/E çekirdek yok. Windows 11'in “prefer performance cores” mantığı burada geçersiz. 8C/16T ve ring/cache davranışı CS2'nin 1% low'unda belirleyici.
@@ -139,6 +151,10 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 - [ ] Ring 4.7 stabil mi
 - [ ] HT on/off testi
 - [ ] HAGS açık/kapalı testi
+- [ ] Enhance pointer precision off
+- [ ] Mouse polling 1000 Hz doğrulandı
+- [ ] Steam/Discord/NVIDIA overlay A/B
+- [ ] Memory Integrity / HVCI A/B (güvenlik trade-off'u)
 - [ ] Ethernet/Wi-Fi ve router modeli
 - [ ] Windows 11'e geçiş planı
 - [ ] NVIDIA sürücü sürümü

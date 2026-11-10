@@ -265,6 +265,9 @@ powercfg /setactive SCHEME_CURRENT
 | GPU preference | `HKCU\Software\Microsoft\DirectX\UserGpuPreferences` | `cs2.exe` = `GpuPreference=2;` | Windows Graphics settings High performance | ✅ script |
 | Görsel efektler | `HKCU\...\Explorer\VisualEffects` | `VisualFXSetting=2` | Best performance; kozmetik | ⬜ |
 | Mouse accel | `HKCU\Control Panel\Mouse` | `MouseSpeed=0`, `MouseThreshold1=0`, `MouseThreshold2=0` | Raw input zaten açık; yine de kapat | ⬜ |
+| Enhance pointer precision | `HKCU\Control Panel\Mouse` → Pointer Options | **Off** | Windows mouse acceleration; CS2 Raw Input bypass eder ama genel hijyen için kapat | ⬜ |
+| Pointer speed | `HKCU\Control Panel\Mouse` | **6/11** | Windows çarpanını varsayılanda tut; acceleration kapalı olsun | ⬜ |
+| Mouse polling rate | Mouse yazılımı / firmware | **1000 Hz** (9900K için 1000/2000 Hz; 4000/8000 Hz CPU thread yükünü artırabilir) | CS2 CPU-bound olduğunda yüksek polling frametime bozabilir; ölçümle | ⬜ |
 | Transparency | `HKCU\...\Themes\Personalize` | `EnableTransparency=0` | Küçük etki | ⬜ |
 
 > Game Mode: CS2'de çoğu sistemde açık kalması daha iyi. Kapatacaksan 1% low ve frametime p99'a bak, “FPS arttı” diye karar verme.
@@ -276,9 +279,15 @@ powercfg /setactive SCHEME_CURRENT
 | Konu | Öneri | Etki / Risk | Durum |
 |---|---|---|---|
 | Defender exclusions | Sadece CS2 klasörü + `cs2.exe` | Real-time protection açık kalır; güvenlik trade-off'u | ✅ script opsiyonel |
+| Memory Integrity / HVCI (Core Isolation) | Windows Security → Device Security → Core Isolation | Test için **Off**, sonra güvenlik değerlendirmesi | 5-10% FPS kazancı olabilir; WSL/Hyper-V/Docker/Sandbox kullanıyorsan yalnızca HVCI kapat, VBS foundation'ı koru; güvenlik trade-off'u | ⚠️ opsiyonel |
+| VBS (Virtualization-Based Security) | `msinfo32` ile durum kontrolü | Test için geçici kapatma, sonra yeniden aç | HVCI'den daha geniş; WSL/Hyper-V/Docker/Sandbox bozabilir; güvenlik riski | ⚠️ opsiyonel |
 | Startup apps | Razer/iCUE/Armoury/Nahimic/Sonic Studio kapat | 1% low'un en yaygın suçluları | ⬜ |
+| Steam overlay | Steam → Settings → In-Game | **Off** | Microstutter/input lag kaynağı olabilir; A/B test | ⬜ |
+| Discord overlay | Discord → Overlay | **Off** | Aynı; ses/overlay hook'ları frametime bozabilir | ⬜ |
+| NVIDIA overlay (App/GFE) | NVIDIA App → Overlay | **Off** | Overlay hook'ları ölçümü ve frametime'i etkiler | ⬜ |
 | SysMain (Superfetch) | **Ölçerek** kapat | NVMe'de etki tartışmalı; uygulama açılışı yavaşlar | ⚠️ |
 | Windows Search | Kullanmıyorsan indexing kapat | Arka plan disk I/O azalır | ⬜ |
+| Shader cache bakımı | NVIDIA CP → Shader cache size | Unlimited/10 GB; düzenli silme | Stutter varsa sürücü güncellemesi sonrası bir kez temizle; her seferinde silme | ⬜ |
 | Delivery Optimization | Upload limiti | FPS'e etkisi yok; bant genişliği | ⬜ |
 | Telemetry servisleri | İsteğe bağlı | Performans etkisi ihmal edilebilir; gizlilik | ⬜ |
 | Pagefile | **System managed** bırak | 64 GB var diye kapatma; anti-cheat/uygulama sorunları | ❌ kapatma |
@@ -353,11 +362,26 @@ Router tarafı: SQM/fq_codel, bufferbloat testi, oyun trafiği için QoS. Bu, Wi
 | Background app max frame rate | **30** (NVIDIA App) | Alt-tab'da GPU'yu boşa çalıştırmaz |
 | Monitor technology | G-Sync Compatible (varsa) | Monitöre göre |
 
+### Reflex ve Low Latency Mode notu
+
+- Varsayılan: CS2 içinde **NVIDIA Reflex = Enabled**; driver **Low Latency Mode = Off** (Reflex render queue'yu yönetir).
+- Reflex stutter yaparsa test et: in-game Reflex **Disabled** + driver **Low Latency Mode = Ultra** + driver-level FPS cap.
+- **Reflex ve Ultra Low Latency Mode'u aynı anda açık bırakma**; ikisi aynı pipeline'da çakışır.
+- RTX 3070'de **Enabled + Boost** güç/ısıyı artırabilir ve bazı sistemlerde 1% low'u bozabilir; A/B test et.
+- `-noreflex` topluluğun bir test seçeneğidir; NVIDIA'nın varsayılan yolu Reflex On'dur.
+
 ### G-Sync + Reflex + V-Sync notu
 
 - G-Sync varsa tear-free + düşük latency için: **G-Sync On + V-Sync On (NVCP) + Reflex On + fps cap (refresh−3)**.
 - Rekabetçi CS2'de V-Sync off tercih edilebilir; o zaman G-Sync'in kapsamı dışında kalırsın.
 - Bu üçlüyü aynı anda açıp “Ultra Low Latency” de açma; çakışır.
+
+### FPS cap notu (360 Hz için)
+
+- **G-Sync + V-Sync + Reflex** kombinasyonunda manuel cap gerekmez; Reflex FPS'i refresh altına tutar.
+- **G-Sync yoksa:** uncapped veya frametime'i stabilize eden yüksek bir cap kullan; 360 Hz için `500+` veya uncapped değerlendir.
+- **G-Sync varsa ve manuel cap kullanacaksan:** `refresh − 3` (360 Hz için `357`).
+- Cap'i tek yerden yönet; in-game + driver + RTSS üst üste bindirme.
 
 ---
 
