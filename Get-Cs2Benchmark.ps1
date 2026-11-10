@@ -49,6 +49,10 @@
 .PARAMETER Label
   Ölçüm etiketi (ör. "before-hags", "after-hags"). Rapor dosya adına yazılır.
 
+.PARAMETER PollingHz
+  Ölçüm sırasındaki mouse polling rate (Hz). Raporu etiketler; örn. 8000, 4000,
+  2000, 1000. Polling karşılaştırmasında hangi turun hangi olduğunu ayırt etmek için.
+
 .EXAMPLE
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2Benchmark.ps1 -Label baseline
 
@@ -67,7 +71,8 @@ param(
     [int]$PingCount = 20,
     [switch]$SkipNetwork,
     [switch]$SkipGame,
-    [string]$Label = 'run'
+    [string]$Label = 'run',
+    [int]$PollingHz = 0
 )
 
 $ErrorActionPreference = 'Continue'
@@ -172,6 +177,7 @@ Write-Step 'System snapshot'
 $snapshot = [ordered]@{
     Timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
     Label     = $Label
+    PollingHz = $(if ($PollingHz -gt 0) { $PollingHz } else { 'N/A' })
     Computer  = $env:COMPUTERNAME
     OS        = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
     Build     = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).BuildNumber
@@ -370,6 +376,7 @@ Write-Step 'Summary'
 $summary = [ordered]@{
     GeneratedAt  = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
     Label        = $Label
+    PollingHz    = $(if ($PollingHz -gt 0) { $PollingHz } else { 'N/A' })
     RunDirectory = $runDir
     System       = $snapshot
     GPU          = $gpuTelemetry
@@ -386,6 +393,7 @@ $md = New-Object System.Collections.Generic.List[string]
 $md.Add('# CS2 Benchmark Özeti')
 $md.Add('')
 $md.Add("> Etiket: **$Label**  ")
+$md.Add("> Mouse polling: **$(if ($PollingHz -gt 0) { "$PollingHz Hz" } else { 'N/A' })**  ")
 $md.Add("> Tarih: **$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))**  ")
 $md.Add("> Klasör: ``$runDir``")
 $md.Add('')

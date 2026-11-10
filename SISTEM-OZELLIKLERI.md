@@ -21,7 +21,8 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 | **GPU modeli** | **RTX 3070 8 GB GDDR6** (AIB/FE modeli bilinmiyor; NVIDIA son sürüm sürücü kurulu) | Power limit, fan eğrisi, VBIOS |
 | **Depolama** | **240 GB SATA SSD** | Disk idle, SysMain/Search değerlendirmesi |
 | **OS** | Windows 10 22H2 (build 19045) | GameDVR/FSO/HAGS/power plan; destek dışı |
-| **Monitör** | **360 Hz** (çözünürlük bilinmiyor; genellikle 1080p, doğrula) | fps cap = 357 önerilebilir, G-Sync/Reflex kararları |
+| **Monitör** | **360 Hz** (çözünürlük bilinmiyor; genellikle 1080p, doğrula) | fps cap = 357 önerilebilir, G-Sync/Reflex kararları; **polling ≥ 2× Hz kuralı** |
+| **Mouse** | **8K Hz polling destekli** | Polling sabit kural değil: 8000/4000/2000/1000 Hz karşılaştırılmalı. DPI ≥ 1600 ile polling doyurulmalı (düşük DPI + yüksek polling = sensör stutter) |
 | **Ağ** | **Ethernet (kablolu), Intel I219-V Gigabit LAN, router: ASUS RT-AX82U** | NIC advanced properties, Adaptive QoE Gaming Mode, %95 bandwidth limiter, SQM yok |
 | **PSU** | **Doldurulacak:** model/watt | 5.0 GHz + RTX 3070 transient yükleri |
 | **Kasa/hava akışı** | **Doldurulacak** | RAM/VRM/GPU sıcaklıkları |

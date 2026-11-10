@@ -140,15 +140,86 @@ kapsamında, base profile'e uygulanmaz).
 
 | Ayar | Hedef | Not |
 |---|---|---|
-| **Mouse polling rate** | **1000 Hz** | 4000/8000 Hz CS2 CPU thread'ini yorabilir |
+| **Mouse polling rate** | **ÖLÇÜLECEK — 8000 Hz destekli fare** | Bkz. aşağıdaki polling matrisi; sabit değer yok, ölçümle karar verilir |
+| **Mouse DPI** | **Polling'i doyurmak yeterli** (8000 Hz için ≥1600 DPI) | Düşük DPI + yüksek polling = sensör stutter |
 | **Enhance pointer precision** | **Off** | Windows mouse acceleration |
 | **Pointer speed** | 6/11 | CS2 raw input bunu bypass eder ama hijyen |
-| **DPI / eDPI** | Sabit (örn. 800) | Oyun içi, bu proje dokunmuyor |
+| **eDPI** | Sabit (örn. 800) | Polling/DPI değişirse **oyun içi sens** aynı kalacak şekilde ayarlanır |
 | **Raw Input** | On | Oyun içi |
 
-### Katman 4 hedef değerlendirmesi
-Polling rate donanım ayarıdır, scriptle değiştirilemez — **elle kontrol edilmeli.**
-2000 Hz bir deneme değeri; 4000/8000 Hz'de CS2'nin ana thread'inde stall görülür.
+### 5.1 Polling matrisi (8K Hz fare için)
+
+Bu, "1000 Hz kullan" gibi sabit bir kural **değildir.** Doğru yaklaşım: **ölç ve seç.**
+
+| Polling | 360 Hz monitörde | CPU yükü | Karar |
+|---|---|---|---|
+| 8000 Hz | Her frame'e 22 rapor düşer | En yüksek | Başlangıç noktası **değil**; stutter riski en yüksek |
+| 4000 Hz | 11 rapor/frame | Yüksek | Ara nokta |
+| 2000 Hz | 5.5 rapor/frame | Orta | **Güvenli aday** |
+| 1000 Hz | 2.8 rapor/frame | Düşük | CS2 için en stabil; pro standardı |
+| 500 Hz | 1.4 rapor/frame | Çok düşük | 360 Hz için **yetersiz** (veri boşluğu) |
+
+**İki kural (kaynak: cs2sensitivity.com, mousetesting.com, gear-rank.com):**
+
+1. **Polling ≥ 2× monitör refresh rate olmalı.** 360 Hz için alt sınır ~720 Hz; pratik standart
+   **1000 Hz** (2.8 rapor/frame).
+2. **DPI saturation:** 8000 Hz fareyi doyurmak için **≥1600 DPI** gerekir. 400 DPI'de
+   8K polling çalıştırırsanız sensör **stutter** yapar — polling yüksek olduğu için
+   değil, **yetersiz veri üretimi** yüzünden. DPI'yı artırıp oyun içi sens'i
+   eDPI'yi koruyacak şekilde düşürürsünüz (fiziksel hareket aynı kalır).
+
+### 5.2 8K Hz neden CS2'de sorun yaratabilir?
+
+- CS2 (Source 2) **tek ana thread**'e dayanır. Her polling raporu bir interrupt
+  demektir; 8000 Hz = saniyede 8000 kesme.
+- 360 Hz'de frame süresi **2.78 ms**. Bu pencereye 22 rapor sığar; oyun thread'i
+  işi arasında input işlemesi takılabilir → **micro-stutter + 1% low düşüşü**.
+- Etkisi donanıma göre değişir: güçlü CPU + C-states kapalı + MSI mode **daha iyi**
+  tolere eder. 9900K 5.0 GHz fixed + ring 4.7 iyi bir başlangıçtır ama tek başına
+  garanti değildir.
+- **Ölçüm zorunludur:** "8K iyi hissettiriyor" ölçüm yerine geçmez.
+
+### 5.3 Önerilen test protokolü (sizin için)
+
+`Get-Cs2Benchmark.ps1` ile **aynı map, aynı saat, 3'er run:**
+
+```
+1) 8000 Hz  → -Label poll8000
+2) 4000 Hz  → -Label poll4000
+3) 2000 Hz  → -Label poll2000
+4) 1000 Hz  → -Label poll1000
+```
+
+**Karşılaştırma metriği:**
+- **1% low FPS** (ortalama FPS değil)
+- **Frametime p99**
+- **Mouse input latency** (hareket → ekran tepkisi; kaydedilmiş video veya
+  mouse latency test aracı ile)
+
+**Karar kuralı:** 8K veya 4K **1% low'u veya p99'u iyileştirmiyorsa**, polling'i
+düşür. Düşük polling "hissedilen" olarak daha kötü olabilir ama **ölçülen** olarak
+daha iyiyse o kazanır.
+
+### 5.4 8K ile ilgili sistem ayarları (denenecekler)
+
+8K polling stutter yaşarsanız, **ölçümle birlikte** şunları dene:
+
+| Ayar | Neden |
+|---|---|
+| **C-states off (BIOS)** | Kesme işleme gecikmesini (interrupt latency) düşürür |
+| **USB selective suspend off** | USB portu uykuya girip interrupt gecikmesi yaratır |
+| **Interrupt Moderation A/B** | DPC yükünü değiştirir (projede zaten opsiyonel) |
+| **Core parking off** | Boştaki core'ler uyanma gecikmesi üretir |
+| **Mouse yazılımında "USB polling" ayarı** | 8K destekli farelerde bazen "report rate" ve "sensor smoothing" ayrı ayrıdır |
+| **USB portu: doğrudan anakart (arkada çıkışlı)** | Hub/ön panel portları interrupt gecikmesi ekler |
+| **Fare kablosu: USB 2.0 değil, USB 3.x** | Yüksek report rate için bant genişliği (fare destekliyorsa) |
+
+### 5.5 Katman 4 hedef değerlendirmesi
+
+1000 Hz **pro standardıdır ve CS2 için en güvenli değerdir** — ama sizin fareniz 8K
+olduğu için bu "herkese tek kural" değildir. Doğru cevap: **ölç, sonra karar ver.**
+Ölçüm aracı hazır; tek eksik olan polling'i değiştirip 4 tur ölçüm yapmanız.
+
 
 ---
 
@@ -208,7 +279,7 @@ Sistem şu koşulları sağladığında **hedef yakalanmış** sayılır:
 | 7 | **Paket kaybı %0** | `Get-Cs2Benchmark.ps1` → ping + NIC sayaçları |
 | 8 | **Jitter < 5 ms** | Aynı |
 | 9 | **Bufferbloat notu A veya B** | waveform.com/bufferbloat |
-| 10 | **Mouse polling 1000 Hz sabit** | Mouse Rate Checker |
+| 10 | **Mouse polling 1000 Hz'de 1% low ≥ 280** (8K/4K/2K denendi) | Mouse Rate Checker + CapFrameX |
 
 > **1% low ≥ 280** 360 Hz'de pratik sınır: ortalama 357 iken 1% low 280'in
 > üzerindeyse panik yapacak bir düşüş yok demektir.

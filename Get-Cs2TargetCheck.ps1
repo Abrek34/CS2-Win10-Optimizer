@@ -205,7 +205,8 @@ if ($null -eq $mouseSpeed) {
     Add-Check -Layer 'Input' -Item 'Mouse acceleration' -Target 'kapali' -Actual "MouseSpeed=$mouseSpeed" -Status 'FAIL' -Action '-DisableMouseAcceleration'
 }
 
-Add-Check -Layer 'Input' -Item 'Mouse polling rate' -Target '1000 Hz' -Actual 'donanim ayari (raporlanamaz)' -Status 'INFO' -Action 'Mouse yaziliminda 1000 Hz sec; 4000/8000 Hz CS2 CPU thread''ini yorabilir'
+Add-Check -Layer 'Input' -Item 'Mouse polling rate' -Target 'olc: 8000/4000/2000/1000 Hz karsilastir' -Actual 'donanim ayari (raporlanamaz)' -Status 'INFO' -Action '8KHz fare icin: polling 2x monitör Hz (360Hz -> min 720Hz, pratik 1000Hz). DPI >= 1600 ile pollingi doyur. CapFrameX 1% low + p99 ile sec.'
+Add-Check -Layer 'Input' -Item 'Mouse DPI (polling saturation)' -Target '8000 Hz icin >= 1600 DPI' -Actual 'raporlanamaz' -Status 'INFO' -Action 'DPI dusukse polling yuksekken sensor stutter olur; DPIyi artirip oyun ici sensi eDPI koruyacak sekilde dusur'
 Add-Check -Layer 'Input' -Item 'Windows pointer speed' -Target '6/11' -Actual 'raporlanamaz' -Status 'INFO' -Action 'Pointer Options: hiz 6/11, Enhance pointer precision kapali'
 
 # ---------------------------------------------------------------------------
