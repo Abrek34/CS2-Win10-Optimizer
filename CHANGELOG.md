@@ -24,9 +24,19 @@ Format: [Semantic Versioning](https://semver.org/lang/tr/).
   kalıcı `CpuPriorityClass=3`.
 - `docs/HEDEF-PROFIL.md` hedef tablosu güncellendi.
 
-### Risk notu
-`High` (3) öncelik, sistemin ses (DPC) ve input thread'lerini starve ederek
-**audio crackle ve stutter** üretebilir — kaldırılmak istenen şeyin tam tersi.
+### Risk notu (Microsoft dokümanıyla doğrulandı)
+Microsoft Learn "Scheduling Priorities": *"Use HIGH_PRIORITY_CLASS with care. If
+a thread runs at the highest priority level for extended periods, other threads
+in the system will not get processor time."* ve *"You should almost never use
+REALTIME_PRIORITY_CLASS, because this interrupts system threads that manage
+mouse input, keyboard input, and background disk flushing."*
+
+Base priority tablosu: Normal=8, Above Normal=11, **High=13**, Realtime=15.
+Windows kuralı: yüksek öncelikli thread hazır olduğunda düşük öncelikli thread
+time slice'ını **bitirmeden** preempt eder.
+
+Sonuç: `High` (3) sistemin ses (DPC), mouse input ve disk flush thread'lerini
+preempt eder → **audio crackle + stutter** (kaldırılmak istenen şeyin tam tersi).
 Steam launch option `-high` da aynı sorunu yapar. Kalıcı öncelik isteniyorsa
 **IFEO** kullanılmalı ve önce `AboveNormal` ile ölçülmelidir.
 

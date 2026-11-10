@@ -256,12 +256,62 @@ HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\c
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1 -Apply -SetCs2Priority AboveNormal
 ```
 
-**Neden `High` (3) riskli?**
+**Neden `High` (3) riskli? — Windows'un kendi dokümanı**
 
-CS2 zaten kendi thread önceliklerini MMCSS üzerinden yönetir. Ek bir
-"High" ayarı, oyunun CPU'yu tamamen bastırmasına yol açar; sistem ses (DPC) ve
-input thread'leri aç kaldığında **audio crackle ve stutter** oluşur — yani
-kaldırmaya çalıştığımız şeyin tam tersi.
+Microsoft Learn, "Scheduling Priorities" (2025) bunu açıkça söylüyor:
+
+> *"Use HIGH_PRIORITY_CLASS **with care**. If a thread runs at the highest
+> priority level for extended periods, **other threads in the system will not
+> get processor time**. If several threads are set at high priority at the same
+> time, the threads lose their effectiveness."*
+
+> *"You should almost never use REALTIME_PRIORITY_CLASS, because this
+> **interrupts system threads that manage mouse input, keyboard input, and
+> background disk flushing**."*
+
+**Somut mekanizma (base priority tablosu):**
+
+| Süreç sınıfı | Normal thread | Base priority | Above Normal | High |
+|---|---:|---:|---:|---:|
+| Normal | 8 | 8 | 9 | 10 |
+| **Above Normal** | 8 | 8 | 9 | **11** |
+| **High** | 8 | 8 | 9 | **13** |
+| Realtime | 8 | 8 | 9 | **15** |
+
+Şimdi Windows'un **kuralını** hatırlayalım:
+*"If a higher-priority thread becomes available to run, the system ceases to
+execute the lower-priority thread **without allowing it to finish using its time
+slice**."*
+
+Yani `High` (base 13), sistemin **ses (DPC/ISR)**, **mouse input** ve **disk
+flush** thread'lerini (base 8) **preempt eder**. `Realtime` (15) ise bunu
+şiddetlendirir.
+
+**CS2 özelinde iki ek etki:**
+
+1. **Ses crackle.** CS2'nin ses thread'i normal öncelikte çalışır. `High` ile
+   oyun thread'i CPU'yu bastırınca ses render thread'i zamanında veri
+   işleyemez → **audio crackle**. Bu yüzden Steam'in `-high` launch option'ı
+   CS2'de "stutter and audio crackle" olarak raporlanıyor.
+
+2. **CS2'nin kendi zamanlaması bozulur.** CS2 (Source 2) frame pacing'i kendi
+   thread öncelikleriyle yönetir; Sub-Tick paket zaman damgaları CPU
+   zamanlamasına bağlıdır. Ana thread'e dışarıdan "High" verildiğinde oyunun
+   kendi zamanlama varsayımları geçersizleşir → **frametime spike** ve
+   **stutter**.
+
+**Above Normal (6) neden daha güvenli?**
+Base priority 11 (High'ın 13'ünden, Normal'ın 8'inden yüksek) — ama
+Windows'un "**reserve for time-critical events**" bandına girmiyor. Sistem
+thread'leri hâlâ zamanında çalışabiliyor.
+
+**Özet:**
+| Değer | Base | Sistem thread'leri | CS2 sonucu |
+|---|---:|---|---|
+| Normal (2) | 8 | Sorun yok | Varsayılan, çoğu durumda yeterli |
+| **Above Normal (6)** | 11 | Çalışmaya devam eder | ✅ Güvenli deneme |
+| High (3) | 13 | **Preempt edilir** | ⚠️ Ses crackle + stutter riski |
+| Realtime (4) | 15 | **Kesintiye uğrar** | ❌ Mouse/disk/ses bozulur |
 
 **Steam launch option `-high` → YAPMA**
 
