@@ -60,6 +60,7 @@
 | `CS2-Desktop-OneClick.ps1` | Aynı değişikliklerin daha basit, tek tık varyantı. | Ana script varken ikinci kez çalıştırmaya gerek yok. |
 | `CS2-Optimize-Baslat.cmd` | PowerShell başlatıcı. | Yönetici olarak çalıştırılmalı. |
 | `Get-Cs2SystemReport.ps1` | Sistemi envanterler ve Masaüstü'ne Markdown + JSON raporu yazar. | Okunur (read-only); “bilinmiyor” yerlerini doldurmak için kullan. |
+| `CS2-Win10-WinUtil-Preferences.ps1` | WinUtil incelemesinden seçilen düşük riskli tercihleri uygular. | Dry-run varsayılan; backup/revert destekler; UWP kaldırma/servis katliamı yapmaz. |
 
 > İki script de **oyun içi ayarlara, BIOS'a ve NVIDIA Control Panel'e dokunmuyor.** Bu raporun NVIDIA/BIOS bölümleri ayrıca uygulanacak.
 
@@ -496,6 +497,7 @@ Router tarafı: SQM/fq_codel, bufferbloat testi, oyun trafiği için QoS. Bu, Wi
 - Windows GPU preference = High performance (cs2.exe).
 - Opsiyonel timer BCD temizliği (`useplatformclock`, `disabledynamictick`, `tscsyncpolicy`, `useplatformtick`).
 - Opsiyonel GameBoost-derived tweak'ler: MPO disable, Storage Sense disable, background apps disable, system VRR toggle.
+- Opsiyonel WinUtil-derived tercihler: activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click.
 - Registry backup, restore point, transcript, `-Revert`.
 
 **Kapsamadıkları (bu raporun konusu):**

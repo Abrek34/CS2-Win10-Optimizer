@@ -16,6 +16,7 @@ Windows 10 + NVIDIA tarafında, **CS2 için oyun dışı** optimizasyonları bel
 | `CS2-Desktop-OneClick.ps1` | Aynı baseline'ın daha basit tek tık varyantı. |
 | `CS2-Optimize-Baslat.cmd` | PowerShell başlatıcı. |
 | `Get-Cs2SystemReport.ps1` | Sistemi envanterler ve Masaüstü'ne Markdown + JSON raporu yazar. Okunur (read-only); hiçbir ayarı değiştirmez. |
+| `CS2-Win10-WinUtil-Preferences.ps1` | WinUtil incelemesinden seçilen düşük riskli tercihleri uygular: activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click. Dry-run varsayılan; backup/revert destekler. |
 | `RAPOR.md` | Tüm ayarlar, gerekçeler, uygulama sırası, ölçüm protokolü, yapma listesi. |
 | `SISTEM-OZELLIKLERI.md` | Ayarların hangi donanım özelliklerine göre seçildiği. |
 
@@ -78,7 +79,7 @@ Raporun içinde: işletim sistemi, CPU, RAM modülleri (slot, üretici, hız, ya
 - Windows GPU preference = High performance (`cs2.exe`).
 - Opsiyonel timer BCD temizliği (`-RestoreTimerDefaults`).
 - Opsiyonel GameBoost-derived tweak'ler: MPO disable (`-DisableMpo`), Storage Sense disable (`-DisableStorageSense`), background apps disable (`-DisableBackgroundApps`), system VRR toggle (`-EnableSystemVrr` / `-DisableSystemVrr`).
-- Registry backup, restore point, transcript, `-Revert`.
+- Opsiyonel WinUtil-derived tercihler: `CS2-Win10-WinUtil-Preferences.ps1` (activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click). Dry-run varsayılan.- Registry backup, restore point, transcript, `-Revert`.
 
 ## Script ne yapmaz?
 
