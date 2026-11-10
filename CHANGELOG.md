@@ -3,6 +3,33 @@
 Tüm önemli değişiklikler bu dosyada belgelenir.
 Format: [Semantic Versioning](https://semver.org/lang/tr/).
 
+## [v1.11.0] — 2026-11-10
+
+### Eklenen
+- `CS2-Win10-UsbIdleDisable.ps1`: USB **cihaz seviyesinde** idle/suspend kapatma.
+  - Windows'ta USB güç yönetimi iki katmanlıdır: OS (powercfg USB selective suspend —
+    projede zaten var) ve cihaz (Device Parameters altındaki SelectiveSuspendOn,
+    AllowIdleIrpInD3, IdleInWorkingState, EnhancedPowerManagementEnabled,
+    DeviceSelectiveSuspended, SelectiveSuspendEnabled).
+  - 8K Hz farede cihaz kendi güç yönetimine girerse polling raporları gecikir;
+    360 Hz monitörde frame başına 40 rapor düşen durumda 1% low'a yansıyabilir.
+  - Orijinal değerler JSON'a kaydedilir; `-Revert` ile birebir geri alınır.
+  - Kaynak: KatzRead CS2 Optimizer paketi (`Disable USB Idle.bat`).
+
+### Belgelenen
+- `RAPOR.md` bölüm 19.6: KatzRead CS2 Optimizer paketi incelemesi —
+  **alınan 1 madde** ve **reddedilen ~18 madde** gerekçeleriyle.
+  - Reddedilenler arasında: NetworkThrottlingIndex=0xFFFFFFFF, Nagle, netsh heuristics/
+    timestamps/rsc/ecn kapatma, nvlddmkm DisablePreemption, P0 kilidi, NvTelemetry64
+    silme, event log temizleme, VRR sistem geneli kapatma.
+- `docs/HEDEF-PROFIL.md` bölüm 5.8: USB iki katmanı ve yeni script.
+- Hedef profil tablosuna USB cihaz idle satırı eklendi.
+
+### Değerlendirme
+Katz paketi ağırlıklı olarak popüler tweak listelerinin birleşimi. Bizim projede
+çoğu madde zaten var ya da bilinçli olarak reddedildi. Tek gerçek katkı USB
+device-level idle/suspend oldu.
+
 ## [v1.10.0] — 2026-11-10
 
 ### Belgelenen

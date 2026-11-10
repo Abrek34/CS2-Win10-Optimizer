@@ -257,6 +257,7 @@ polling doygunluğu sağlanır.
 
 | Ayar | Neden |
 |---|---|
+| **USB cihaz idle/suspend kapatma** | Fare/klavye cihaz seviyesinde güç tasarrufunu kapatır | `CS2-Win10-UsbIdleDisable.ps1`; 8K Hz farede polling kaynaklı gecikmede daha belirgin |
 | **C-states off (BIOS)** | Kesme işleme gecikmesini (interrupt latency) düşürür |
 | **USB selective suspend off** | USB portu uykuya girip interrupt gecikmesi yaratır |
 | **Interrupt Moderation A/B** | DPC yükünü değiştirir (projede zaten opsiyonel) |
@@ -392,6 +393,43 @@ input latency'yi iyi tutar hem 1% low'ları toparlar. Ama bu bir **tahmin** —
 ölçümle doğrulanmalı.
 
 ---
+
+### 5.8 USB cihaz seviyesinde güç yönetimi (yeni)
+
+> Windows'ta USB güç yönetimi **iki katmanda** çalışır. Proje şu ana kadar yalnızca
+> 1. katmanı (OS/powercfg) kapatıyordu.
+
+| Katman | Nerede | Durum |
+|---|---|---|
+| **1) OS katmanı** | `powercfg` → USB selective suspend (`2a737441.../48e6b7a6...`) | ✅ Projede zaten var |
+| **2) Cihaz katmanı** | `HKLM\SYSTEM\CurrentControlSet\Enum\USB\...\Device Parameters` → `SelectiveSuspendOn`, `AllowIdleIrpInD3`, `IdleInWorkingState`, `EnhancedPowerManagementEnabled`, `DeviceSelectiveSuspended`, `SelectiveSuspendEnabled` | 🆕 **Yeni script ile eklendi** |
+
+**Neden önemli (özellikle 8K Hz farede):**
+
+Cihaz kendi güç yönetimine girerse, USB polling raporları **gecikmeli** gelir. 8K Hz
+farede bu, 0.125 ms'lik polling aralığına göre anlamlı bir jitter kaynağıdır — 360 Hz
+monitörde frame başına 40 rapor düşen durumda (bkz. 5.2) bu gecikme doğrudan
+1% low'a yansıyabilir.
+
+**Kullanım:**
+```powershell
+# Listele (dry run)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-UsbIdleDisable.ps1
+
+# Uygula
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-UsbIdleDisable.ps1 -Apply
+
+# Geri al
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-UsbIdleDisable.ps1 -Revert
+```
+
+Script yalnızca USB cihaz idle/suspend değerlerine dokunur ve **orijinal değerleri JSON'a
+kaydederek** geri alma imkânı sunar. Sonrasında USB cihazlarını yeniden takmak veya
+sistemi yeniden başlatmak gerekebilir.
+
+> **Kaynak:** KatzRead CS2 Optimizer paketi (`Disable USB Idle.bat`) — bu paketteki
+> **en değerli ve riski düşük** bulgu. Aynı paketteki diğer scriptlerin riskli
+> kısımları (aşağıda) bilinçli olarak **alınmadı**.
 
 ## 6. Katman 5 — Ağ ("paket kaybı olmadan")
 

@@ -1,6 +1,6 @@
 # CS2 / Windows 10 / NVIDIA Optimizasyon Raporu
 
-> **Sürüm:** v1.10.0 — 10 Kasım 2026  
+> **Sürüm:** v1.11.0 — 10 Kasım 2026  
 > **Durum:** Çalışma dosyası. Uygulananlar, planlananlar ve ölçüm sonuçları bu dosyada takip edilecek.  
 > **Kapsam:** Windows 10 işletim sistemi, NVIDIA sürücü/Inspector katmanı, BIOS/firmware ve ölçüm metodolojisi.  
 > **Kapsam dışı:** CS2 oyun içi video/Crosshair/autoexec ayarları.
@@ -1092,6 +1092,44 @@ GameBoost BIOS rehberi **DDR4-3600 CL16** varsayıyor; bizim sistem **DDR4-4000 
 GameBoost v3 iyi bir **referans** ve backup/restore yaklaşımı güzel; ancak bizim projede zaten daha güvenli ve ölçülebilir bir yapı var. GameBoost'tan alınabilecek tek anlamlı opsiyonel maddeler: **MPO disable**, **Storage Sense disable**, **background apps disable** ve **VRR sistem geneli toggle**. Bunlar da A/B test ile değerlendirilmeli.
 
 ---
+
+### 19.6 KatzRead CS2 Optimizer paketi incelemesi — neler alındı, neler reddedildi
+
+`Katz.rar` (KatzRead CS2 Optimizer) incelendi: DDU/NVCleanstall, MSI Util, Interrupt
+Affinity Tool, Autoruns, Win11Debloat/Winhance, NVIDIA scriptleri ve bir "03 - Donanim
+ve Gecikme (Latency)" klasörü içeriyor.
+
+**Alınan (1 madde):**
+- ✅ **USB cihaz seviyesinde idle/suspend kapatma** → `CS2-Win10-UsbIdleDisable.ps1`
+  (yeni script; ayrıntı: `docs/HEDEF-PROFIL.md` bölüm 5.8)
+
+**Reddedilen (gerekçesiyle):**
+
+| Katz maddesi | Neden alınmadı |
+|---|---|
+| `NetworkThrottlingIndex = 0xFFFFFFFF` | DPC latency artışı — projede ❌ |
+| `SystemResponsiveness = 0` | Proje 10 kullanıyor; 0 da aynı mod |
+| Nagle (`TcpAckFrequency`, `TCPNoDelay`, `TcpDelAckTicks`) | CS2 UDP; etkisiz |
+| `netsh int tcp set heuristics disabled` | Düşük FPS, placebo; Microsoft "yalnızca sorun giderme" der |
+| `netsh int tcp set global timestamps=disabled` | Düşük FPS; kernel timestamp bozulur |
+| `netsh int tcp set global rsc=disabled` | RSC kapatmak CPU yükünü artırır, latency için ters |
+| `netsh int tcp set global ecncapability=disabled` | Düşük FPS; modern routerlerde faydasız |
+| `arp -d *` / `nbtstat -R` | Yalnızca birkaç kez, tekrarlı faydası yok; ARP cache'i temizlemek bağlantıyı koparabilir |
+| `Delete Preemption` / `EnableCEPreemption` (nvlddmkm) | Belgesiz, kararsız; sürücü güncellemelerinde silinir, TDR riski |
+| `DisableMshybridNvsrSwitch` | Yalnızca hibrit GPU'lar (7900/4080); 3070'da etkisiz |
+| `DisableDynamicPstate` (P0 kilidi) | GPU'yu sürekli P0'da tutmak **güç/ısı** artırır; 3070'de zaten boost yapar |
+| `nvidia-smi -acp 0` (AC keystone) | Yalnızca GeForce Experience; güncel sürücülerde etkisiz |
+| `NvTelemetry64.dll` silme | Sürücü bütünlüğünü bozar; sürücü güncellemesi gerekir |
+| `CLEAN1/CLEAN2.bat` (temp/prefetch/log silme, event log temizleme) | Olay logları **tanı kaldırır**; sorun giderme imkânını yok eder. `del /s /q c:\windows	emp\*.*` de tehlikeli |
+| `Windows10Debloater` "Debloat Windows" | Cortana kapatma, Edge PDF kapatma vb. — kullanıcı tercihi, performans değil; geri alma zor |
+| `ALL Wi.bat` → `VRROptimizeEnable=0` | **VRR'yi sistem genelinde kapatır**; 360 Hz monitörde VRR kapatmak jitter artırır |
+| `EnableTransparency=0`, Spotlight, ContentDeliveryManager | Kozmetik; performans etkisi ölçülemez |
+| `Autoruns.exe` | Ayrı üçüncü taraf araç; projede kendi karşılaştırma raporumuz var |
+| `MSI Util v3` / `Interrupt Affinity Tool` | Harici araçlar; projede MSI mode zaten "ölçmeden yapma" ilkesinde |
+
+**Sonuç:** Katz paketi ağırlıklı olarak **popüler tweak listelerinin birleşimi**. Bizim
+projede bu maddelerin çoğu zaten ya var ya da bilinçli olarak reddedildi. Tek gerçek
+katkı **USB device-level idle/suspend** oldu ve bu eklendi.
 
 ## Ek A — Win11Debloat inceleme özeti (önceki konu)
 

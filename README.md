@@ -19,6 +19,7 @@ Windows 10 + NVIDIA tarafında, **CS2 için oyun dışı** optimizasyonları bel
 | `CS2-Win10-WinUtil-Preferences.ps1` | WinUtil incelemesinden seçilen düşük riskli tercihleri uygular: activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click. Dry-run varsayılan; backup/revert destekler. |
 | `CS2-Win10-Background-Telemetry-Cleanup.ps1` | CS2 odaklı arka plan/telemetri temizliği: DiagTrack/dmwappushservice, CEIP/uyumluluk görevleri, AllowTelemetry, background apps, opsiyonel UWP kaldırma. Dry-run varsayılan; servis/görev/registry backup ve revert destekler. UWP kaldırma tam geri alınamaz. |
 | `CS2-Win10-Network-Tuning.ps1` | Düşük latency + paket kaybı yok: link power saving off, WoL off, adapter power management off, RSS on, TCP autotuning normal. Interrupt Moderation/RSC opsiyonel A/B. Flow Control **açık bırakılır** (paket kaybı koruması). Dry-run varsayılan; backup/revert destekler. |
+| `CS2-Win10-UsbIdleDisable.ps1` | USB **cihaz seviyesinde** idle/suspend kapatma (fare/klavye polling gecikmesi). Powercfg katmanından ayrı; orijinal değerleri JSON'a kaydedip geri alır. Dry-run varsayılan. |
 | `Get-Cs2AimMatrix.ps1` | DPI / CS2 sens / polling matrisi hesaplar: eDPI sabitken DPI kademeleri, cm/360, polling doygunluk hızları ve polling×FPS etkileşimi. Read-only. |
 | `Get-Cs2RawAccelCheck.ps1` | RawAccel kurulumunu denetler: sürücü durumu, settings.json çarpanları ve CS2'de **gerçekte oynadığınız** sens/cm-360 değerini hesaplar. Read-only. |
 | `Get-Cs2TargetCheck.ps1` | **Hedef profil denetimi.** "CS2 mükemmel sistem" tanımına göre sistemdeki her katmanı kontrol eder; OK/WARN/FAIL + gereken aksiyon raporu üretir. Read-only. |
@@ -175,6 +176,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ## Sürüm
 
+- **v1.11.0** — USB cihaz seviyesinde idle/suspend kapatma scripti eklendi; KatzRead paketi incelemesi (1 alındı, ~18 reddedildi) belgelendi.
 - **v1.10.0** — "0 ve 1 tick kaldırma" (CPU affinity) efsanesi çürütüldü; 9900K'da uygulanmamalı.
 - **v1.9.0** — `cs2.exe` için kalıcı işlem önceliği (IFEO `PerfOptions`), `-SetCs2Priority` bayrağı eklendi.
 - **v1.8.0** — MMCSS `Scheduling Category=High` hatası düzeltildi (stutter üretiyordu), `MouseSensitivity=10` eklendi.
