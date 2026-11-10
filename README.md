@@ -19,6 +19,7 @@ Windows 10 + NVIDIA tarafında, **CS2 için oyun dışı** optimizasyonları bel
 | `CS2-Win10-WinUtil-Preferences.ps1` | WinUtil incelemesinden seçilen düşük riskli tercihleri uygular: activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click. Dry-run varsayılan; backup/revert destekler. |
 | `CS2-Win10-Background-Telemetry-Cleanup.ps1` | CS2 odaklı arka plan/telemetri temizliği: DiagTrack/dmwappushservice, CEIP/uyumluluk görevleri, AllowTelemetry, background apps, opsiyonel UWP kaldırma. Dry-run varsayılan; servis/görev/registry backup ve revert destekler. UWP kaldırma tam geri alınamaz. |
 | `CS2-Win10-Network-Tuning.ps1` | Düşük latency + paket kaybı yok: link power saving off, WoL off, adapter power management off, RSS on, TCP autotuning normal. Interrupt Moderation/RSC opsiyonel A/B. Flow Control **açık bırakılır** (paket kaybı koruması). Dry-run varsayılan; backup/revert destekler. |
+| `Get-Cs2TargetCheck.ps1` | **Hedef profil denetimi.** "CS2 mükemmel sistem" tanımına göre sistemdeki her katmanı kontrol eder; OK/WARN/FAIL + gereken aksiyon raporu üretir. Read-only. |
 | `Get-Cs2Benchmark.ps1` | **Ölçüm motoru.** CapFrameX/PresentMon frame time, HWiNFO/nvidia-smi sensörleri, ağ jitter/paket kaybı ve NIC discard sayaçlarını toplar; `summary.md` + `summary.json` üretir. Hiçbir ayarı değiştirmez. |
 | `Get-Cs2GpuProfile.ps1` | RTX 3070 power limit yönetimi (nvidia-smi) + doğrulanmış NVIDIA Profile Inspector (.nip) profili üretimi. Revert destekler. |
 | `CS2Optimizer.psm1` | Ortak yardımcı modülü (registry, powercfg, NIC, backup/revert). Tüm scriptler bunu kullanır. |
@@ -37,6 +38,9 @@ Projenin felsefesi: **tek değişiklik → ölçüm → karar.** Şu sırayla il
 # 1) Sistem envanteri (read-only)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2SystemReport.ps1
 
+# 1b) Hedef profile kac uzakta? (read-only)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2TargetCheck.ps1
+
 # 2) Baseline ölçümü (CS2 açıkken çalıştır)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2Benchmark.ps1 -Label baseline
 
@@ -51,6 +55,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 ```
 
 > Ölçüm karşılaştırmasında **ortalama FPS değil 1% low ve frametime p99** dikkat et.
+>
+> **Hedef profilin tam tanımı:** [`docs/HEDEF-PROFIL.md`](docs/HEDEF-PROFIL.md)
 
 ---
 

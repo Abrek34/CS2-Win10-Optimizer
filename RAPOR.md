@@ -9,6 +9,11 @@
 
 ## 0. Özet
 
+> 🎯 **Hedef:** Elimizdeki donanımla (i9-9900K + Z390-A PRO + RTX 3070 + 64 GB
+> DDR4-4000 + 360 Hz) **CS2 için mümkün olan en akıcı sistemi** yakalamak.
+> Tam hedef tanımı ve kabul kriterleri: [`docs/HEDEF-PROFIL.md`](docs/HEDEF-PROFIL.md)
+> Hedefe uzaklığı ölçen araç: `Get-Cs2TargetCheck.ps1` (read-only).
+
 - Amaç: ortalama FPS'ten çok **1% low / 0.1% low, frametime kararlılığı ve input latency** iyileştirmesi.
 - Temel ilke: **tek değişiklik → ölçüm → karar**. Aynı anda 10 tweak uygulanmayacak.
 - Bu sistemde en yüksek getirisi olan katmanlar sırasıyla:
