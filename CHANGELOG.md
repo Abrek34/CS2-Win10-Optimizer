@@ -3,6 +3,17 @@
 Tüm önemli değişiklikler bu dosyada belgelenir.
 Format: [Semantic Versioning](https://semver.org/lang/tr/).
 
+## [v1.5.0] — 2026-11-10
+
+### Eklenen
+- `docs/HEDEF-PROFIL.md`: "CS2 Mükemmel Sistem" hedef profili.
+  - 6 katman: BIOS → Windows → GPU → Input → Ağ → Arka plan
+  - Kabul kriterleri: 357 FPS, 1% low ≥ 280, p99 ≤ 4.0 ms, 0 paket kaybı, jitter < 5 ms
+  - Uygulama sırası ve bilerek "mükemmel" olmayanlar listesi
+- `Get-Cs2TargetCheck.ps1`: hedef profile uzaklık denetimi (read-only).
+  - 6 katman, 28 kontrol; OK/WARN/FAIL + gereken aksiyon
+  - Markdown + JSON rapor
+
 ## [v1.4.0] — 2026-11-10
 
 ### Eklenen
