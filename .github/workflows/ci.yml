@@ -81,6 +81,33 @@ jobs:
         shell: pwsh
         run: ./tests/Verify-ModuleUsage.ps1
 
+  diagnose:
+    name: CI teşhisi (başlatma hatası)
+    runs-on: ubuntu-latest
+    if: ${{ failure() && !cancelled() }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Olası baslatma engellerini kontrol et
+        shell: bash
+        run: |
+          echo "::group::Ortam"
+          echo "Runner: ${{ runner.os }}"
+          echo "Actions billing notu: hesap faturalama nedeniyle kilitliyse"
+          echo "job'lar 'The job was not started because your account is locked"
+          echo "due to a billing issue' mesajiyla baslamaz."
+          echo ""
+          echo "::group::Hata ayiklama"
+          echo "Hata mesajini asagidaki adresten alin:"
+          echo "  https://github.com/${{ github.repository }}/actions/runs/\${{ github.run_id }}"
+          echo ""
+          echo "Hesap faturalama durumu:"
+          echo "  https://github.com/settings/billing"
+          echo ""
+          echo "Bu depo icin CI notu: docs/CI-NOTU.md"
+
   dry-run:
     name: Dry-run (ayarlara dokunmaz)
     runs-on: windows-latest

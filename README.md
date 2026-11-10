@@ -187,6 +187,11 @@ Get-ChildItem *.ps1 | ForEach-Object {
 
 Her push'ta CI (sözdizimi + PSScriptAnalyzer + Pester + dry-run) çalışır: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
+> ⚠️ **CI şu anda başlatılamıyor:** GitHub hesabı faturalama nedeniyle kilitli
+> (`The job was not started because your account is locked due to a billing issue`).
+> Bu kodla ilgili değil; hesap kilidi kalkınca CI kendiliğinden çalışacaktır.
+> Teşhis ve elle doğrulama komutları: [`docs/CI-NOTU.md`](docs/CI-NOTU.md)
+
 ---
 
 ## Lisans
