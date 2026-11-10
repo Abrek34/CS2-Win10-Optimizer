@@ -134,6 +134,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 - **v1.0.0** — İlk sürüm: Windows baseline scriptleri, sistem özellikleri dosyası ve detaylı rapor.
 - **v1.1.0** — `Get-Cs2SystemReport.ps1` sistem envanteri/rapor üreticisi eklendi.
 - **v1.2.0** — GameBoost-derived opsiyonel tweak'ler, WinUtil-derived düşük riskli tercihler ve background/telemetry cleanup scripti eklendi.
+- **v1.3.0** — Ağ tuning scripti (düşük latency + paket kaybı yok), input lag ölçüm zinciri ve performans/latency opsiyonları eklendi.
 
 ---
 
