@@ -17,6 +17,7 @@ Windows 10 + NVIDIA tarafında, **CS2 için oyun dışı** optimizasyonları bel
 | `CS2-Optimize-Baslat.cmd` | PowerShell başlatıcı. |
 | `Get-Cs2SystemReport.ps1` | Sistemi envanterler ve Masaüstü'ne Markdown + JSON raporu yazar. Okunur (read-only); hiçbir ayarı değiştirmez. |
 | `CS2-Win10-WinUtil-Preferences.ps1` | WinUtil incelemesinden seçilen düşük riskli tercihleri uygular: activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click. Dry-run varsayılan; backup/revert destekler. |
+| `CS2-Win10-Background-Telemetry-Cleanup.ps1` | CS2 odaklı arka plan/telemetri temizliği: DiagTrack/dmwappushservice, CEIP/uyumluluk görevleri, AllowTelemetry, background apps, opsiyonel UWP kaldırma. Dry-run varsayılan; servis/görev/registry backup ve revert destekler. UWP kaldırma tam geri alınamaz. |
 | `RAPOR.md` | Tüm ayarlar, gerekçeler, uygulama sırası, ölçüm protokolü, yapma listesi. |
 | `SISTEM-OZELLIKLERI.md` | Ayarların hangi donanım özelliklerine göre seçildiği. |
 
@@ -79,8 +80,9 @@ Raporun içinde: işletim sistemi, CPU, RAM modülleri (slot, üretici, hız, ya
 - Windows GPU preference = High performance (`cs2.exe`).
 - Opsiyonel timer BCD temizliği (`-RestoreTimerDefaults`).
 - Opsiyonel GameBoost-derived tweak'ler: MPO disable (`-DisableMpo`), Storage Sense disable (`-DisableStorageSense`), background apps disable (`-DisableBackgroundApps`), system VRR toggle (`-EnableSystemVrr` / `-DisableSystemVrr`).
-- Opsiyonel WinUtil-derived tercihler: `CS2-Win10-WinUtil-Preferences.ps1` (activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click). Dry-run varsayılan.- Registry backup, restore point, transcript, `-Revert`.
-
+- Opsiyonel WinUtil-derived tercihler: `CS2-Win10-WinUtil-Preferences.ps1` (activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click). Dry-run varsayılan.
+- Arka plan/telemetri temizliği: `CS2-Win10-Background-Telemetry-Cleanup.ps1` (DiagTrack/dmwappushservice, CEIP/uyumluluk görevleri, AllowTelemetry, background apps, opsiyonel UWP kaldırma). Dry-run varsayılan; UWP kaldırma tam geri alınamaz.
+- Registry backup, restore point, transcript, `-Revert`.
 ## Script ne yapmaz?
 
 - Oyun içi ayarlara dokunmaz.

@@ -61,6 +61,7 @@
 | `CS2-Optimize-Baslat.cmd` | PowerShell başlatıcı. | Yönetici olarak çalıştırılmalı. |
 | `Get-Cs2SystemReport.ps1` | Sistemi envanterler ve Masaüstü'ne Markdown + JSON raporu yazar. | Okunur (read-only); “bilinmiyor” yerlerini doldurmak için kullan. |
 | `CS2-Win10-WinUtil-Preferences.ps1` | WinUtil incelemesinden seçilen düşük riskli tercihleri uygular. | Dry-run varsayılan; backup/revert destekler; UWP kaldırma/servis katliamı yapmaz. |
+| `CS2-Win10-Background-Telemetry-Cleanup.ps1` | CS2 odaklı arka plan/telemetri temizliği: DiagTrack/dmwappushservice, CEIP/uyumluluk görevleri, AllowTelemetry, background apps, opsiyonel UWP kaldırma. | Dry-run varsayılan; servis/görev/registry backup ve revert destekler; UWP kaldırma tam geri alınamaz. |
 
 > İki script de **oyun içi ayarlara, BIOS'a ve NVIDIA Control Panel'e dokunmuyor.** Bu raporun NVIDIA/BIOS bölümleri ayrıca uygulanacak.
 
@@ -527,6 +528,39 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 ```
 
 > `-RestoreTimerDefaults` sadece daha önce HPET/timer tweak'i yaptıysan anlamlı. Temiz kurulumda gereksiz.
+
+### `CS2-Win10-Background-Telemetry-Cleanup.ps1`
+
+**Uyguladıkları:**
+- DiagTrack ve dmwappushservice servislerini kapatır.
+- CEIP/uyumluluk telemetrisi zamanlanmış görevlerini devre dışı bırakır.
+- `AllowTelemetry = 0` ayarlar.
+- Global background app access'i kapatır.
+- Opsiyonel UWP uygulama kaldırma/deprovision.
+- Opsiyonel Windows Error Reporting kapatma.
+- Servis/görev/registry backup ve `-Revert`.
+
+**Kapsamadıkları:**
+- Defender, Windows Update, BITS, networking servisleri.
+- BIOS/CPU/RAM/GPU overclock.
+- NVIDIA Control Panel / Profile Inspector.
+- UWP kaldırma tam geri alınamaz; Microsoft Store'dan yeniden kurulmalıdır.
+
+**Kullanım:**
+
+```powershell
+# Dry run
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Background-Telemetry-Cleanup.ps1
+
+# Telemetri + background apps
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Background-Telemetry-Cleanup.ps1 -Apply -DisableTelemetry -DisableBackgroundApps
+
+# Opsiyonel UWP kaldırma
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Background-Telemetry-Cleanup.ps1 -Apply -DisableTelemetry -RemoveNonEssentialApps
+
+# Geri al
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Background-Telemetry-Cleanup.ps1 -Revert
+```
 
 ### `CS2-Desktop-OneClick.ps1`
 
