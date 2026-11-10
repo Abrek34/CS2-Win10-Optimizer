@@ -1,6 +1,6 @@
 # CS2 / Windows 10 / NVIDIA Optimizasyon Raporu
 
-> **Sürüm:** v1.7.0 — 10 Kasım 2026  
+> **Sürüm:** v1.8.0 — 10 Kasım 2026  
 > **Durum:** Çalışma dosyası. Uygulananlar, planlananlar ve ölçüm sonuçları bu dosyada takip edilecek.  
 > **Kapsam:** Windows 10 işletim sistemi, NVIDIA sürücü/Inspector katmanı, BIOS/firmware ve ölçüm metodolojisi.  
 > **Kapsam dışı:** CS2 oyun içi video/Crosshair/autoexec ayarları.
@@ -208,7 +208,7 @@ powercfg /setactive SCHEME_CURRENT
 | `SystemResponsiveness` | `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile` | `10` | MMCSS arka plan rezervi %20 → %10. 0 yapma. | ⬜ |
 | `NetworkThrottlingIndex` | aynı yer | **dokunma** | Kapatmak NDIS.sys DPC latency'sini artırabilir. | ❌ |
 | `PowerThrottlingOff` | `HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling` | `1` | EcoQoS'un oyun thread'lerini kısmasını engeller. | ⬜ |
-| `Games` profili | `...\SystemProfile\Tasks\Games` | `GPU Priority=8`, `Priority=6`, `Scheduling Category=High`, `SFIO Priority=High` | CS2'de büyük ihtimalle placebo; zararsız. | ⬜ |
+| `Games` profili | `...\SystemProfile\Tasks\Games` | `GPU Priority=8`, `Priority=6`, `Scheduling Category=**Medium**`, `SFIO Priority=High` | **Düzeltme:** `Scheduling Category=High` **stutter üretir** — oyun thread'lerini Pro Audio bandına (23-26) sokup sistem thread'lerini starve eder. `GPU Priority` ve `SFIO Priority` Microsoft dokümanına göre **hiç kullanılmaz**. `Priority=6` yalnızca `Medium` kategoride anlamlıdır (`High`da her zaman 2 sayılır). | ⬜ |
 | `DisablePagingExecutive` | `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management` | `1` | Kernel'i RAM'de tutar; 64 GB'da zararsız, etki küçük. | ⬜ |
 | `HwSchMode` | `HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers` | `2` = HAGS açık, `1` = kapalı | A/B test; bazı sistemlerde stutter. | ⬜ |
 
@@ -271,7 +271,7 @@ powercfg /setactive SCHEME_CURRENT
 | FSO (cs2.exe) | `HKCU\...\AppCompatFlags\Layers` | `~ DISABLEDXMAXIMIZEDWINDOWEDMODE` | Alt-tab/stabilite A/B test | ⬜ opsiyonel |
 | GPU preference | `HKCU\Software\Microsoft\DirectX\UserGpuPreferences` | `cs2.exe` = `GpuPreference=2;` | Windows Graphics settings High performance | ✅ script |
 | Görsel efektler | `HKCU\...\Explorer\VisualEffects` | `VisualFXSetting=2` | Best performance; kozmetik | ⬜ |
-| Mouse accel | `HKCU\Control Panel\Mouse` | `MouseSpeed=0`, `MouseThreshold1=0`, `MouseThreshold2=0` | Raw input zaten açık; yine de kapat | ⬜ |
+| Mouse accel | `HKCU\Control Panel\Mouse` | `MouseSpeed=0`, `MouseThreshold1=0`, `MouseThreshold2=0`, **`MouseSensitivity=10`** | **Düzeltme:** `MouseSensitivity` 10 değilse count'ları ölçekler (skip/duplicate) — tek 1:1 değer odur. `SmoothMouseXCurve/YCurve`'a dokunma: `MouseSpeed=0` iken zaten okunmazlar (silmek/`00` yapmak gereksiz). **CS2 raw input kullandığı için bu ayar masaüstünü etkiler, nişan hızını değil.** | ⬜ |
 | Enhance pointer precision | `HKCU\Control Panel\Mouse` → Pointer Options | **Off** | Windows mouse acceleration; CS2 Raw Input bypass eder ama genel hijyen için kapat | ⬜ |
 | Pointer speed | `HKCU\Control Panel\Mouse` | **6/11** | Windows çarpanını varsayılanda tut; acceleration kapalı olsun | ⬜ |
 | Mouse polling rate | Mouse yazılımı / firmware | **1000 Hz** (9900K için 1000/2000 Hz; 4000/8000 Hz CPU thread yükünü artırabilir) | CS2 CPU-bound olduğunda yüksek polling frametime bozabilir; ölçümle | ⬜ |
@@ -801,6 +801,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Network-Tuni
 - ❌ `Win32PrioritySeparation=38`'den büyük FPS artışı beklemek (default ile aynı).
 - ❌ SysMain/Search'ü körlemesine kapatmak.
 - ❌ Tüm Xbox/telemetry servislerini topluca disable etmek.
+- ❌ MMCSS `Scheduling Category=High` — Pro Audio bandına sokar, sistem thread'lerini starve edip stutter üretir.
+- ❌ `SmoothMouseXCurve`/`SmoothMouseYCurve` silmek veya `00` yapmak — `MouseSpeed=0` iken gereksiz.
+- ❌ `MouseSensitivity` 10 dışında bir değer — count'ları ölçekler.
 
 ### 16.1 İnternette önerilen ama projede reddedilen tweak'ler
 

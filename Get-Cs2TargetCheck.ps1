@@ -182,6 +182,21 @@ if ($null -eq $sysResp) {
     Add-Check -Layer 'Windows' -Item 'SystemResponsiveness' -Target '10' -Actual $sysResp -Status 'WARN' -Action '-SetSystemResponsiveness'
 }
 
+# MMCSS Games task - Scheduling Category High stutter yaratabilir
+$schedCat = Get-RegValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games' -Name 'Scheduling Category'
+if ("$schedCat" -eq 'High') {
+    Add-Check -Layer 'Windows' -Item 'MMCSS Games Scheduling Category' -Target 'Medium' -Actual 'High' -Status 'FAIL' -Action "High = Pro Audio bandi (23-26); sistem threadlerini starve edip stutter yaratabilir. -SetMmcssGameProfile ile Mediuma al"
+} elseif ($null -eq $schedCat) {
+    Add-Check -Layer 'Windows' -Item 'MMCSS Games Scheduling Category' -Target 'Medium' -Actual 'varsayilan' -Status 'OK'
+} else {
+    Add-Check -Layer 'Windows' -Item 'MMCSS Games Scheduling Category' -Target 'Medium' -Actual $schedCat -Status 'OK'
+}
+
+$gpuPrio = Get-RegValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games' -Name 'GPU Priority'
+if ($null -ne $gpuPrio) {
+    Add-Check -Layer 'Windows' -Item 'MMCSS GPU Priority' -Target 'degistirme (Microsoft: kullanilmiyor)' -Actual $gpuPrio -Status 'INFO' -Action 'Degeri degistirmek etkisiz; GUI hissi yaratabilir'
+}
+
 $netThrottle = Get-RegValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile' -Name 'NetworkThrottlingIndex'
 if ($null -eq $netThrottle) {
     Add-Check -Layer 'Windows' -Item 'NetworkThrottlingIndex' -Target 'degistirme' -Actual 'varsayilan' -Status 'OK'
@@ -203,6 +218,21 @@ if ($null -eq $mouseSpeed) {
     Add-Check -Layer 'Input' -Item 'Mouse acceleration' -Target 'kapali' -Actual 'MouseSpeed=0' -Status 'OK'
 } else {
     Add-Check -Layer 'Input' -Item 'Mouse acceleration' -Target 'kapali' -Actual "MouseSpeed=$mouseSpeed" -Status 'FAIL' -Action '-DisableMouseAcceleration'
+}
+
+$mouseSens = Get-RegValue -Path 'HKCU:\Control Panel\Mouse' -Name 'MouseSensitivity'
+if ($null -eq $mouseSens) {
+    Add-Check -Layer 'Input' -Item 'MouseSensitivity (1:1 degeri)' -Target '10' -Actual 'yok (varsayilan 10)' -Status 'OK'
+} elseif ("$mouseSens" -eq '10') {
+    Add-Check -Layer 'Input' -Item 'MouseSensitivity (1:1 degeri)' -Target '10' -Actual $mouseSens -Status 'OK'
+} else {
+    Add-Check -Layer 'Input' -Item 'MouseSensitivity (1:1 degeri)' -Target '10' -Actual $mouseSens -Status 'WARN' -Action "10 degilse countlar olceklenir (skip/duplicate). -DisableMouseAcceleration"
+}
+
+$curveX = Get-RegValue -Path 'HKCU:\Control Panel\Mouse' -Name 'SmoothMouseXCurve'
+$curveY = Get-RegValue -Path 'HKCU:\Control Panel\Mouse' -Name 'SmoothMouseYCurve'
+if ($null -ne $curveX -or $null -ne $curveY) {
+    Add-Check -Layer 'Input' -Item 'SmoothMouseXCurve/YCurve' -Target 'dokunma (MouseSpeed=0 iken okunmaz)' -Actual 'mevcut' -Status 'OK' -Action 'Silmek veya 00 yapmak gereksiz; MouseSpeed=0 yeterli'
 }
 
 Add-Check -Layer 'Input' -Item 'Mouse polling rate' -Target 'olc: 8000/4000/2000/1000 Hz karsilastir' -Actual 'donanim ayari (raporlanamaz)' -Status 'INFO' -Action '8KHz fare icin: polling 2x monitör Hz (360Hz -> min 720Hz, pratik 1000Hz). DPI >= 1600 ile pollingi doyur. CapFrameX 1% low + p99 ile sec.'

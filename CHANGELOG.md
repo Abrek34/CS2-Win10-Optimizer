@@ -3,6 +3,28 @@
 Tüm önemli değişiklikler bu dosyada belgelenir.
 Format: [Semantic Versioning](https://semver.org/lang/tr/).
 
+## [v1.8.0] — 2026-11-10
+
+### Düzeltilen (önemli)
+- **MMCSS `Scheduling Category=High` artık uygulanmıyor.** High kategorisi oyun
+  thread'lerini Pro Audio bandına (23-26) sokup sistem thread'lerini starve ederek
+  **stutter üretir** — kaldırılmaya çalışılan şeyin tam tersi. Artık `Medium`
+  kullanılıyor (Microsoft varsayılanı). `Priority=6` yalnızca Medium'da anlamlı.
+  Kaynak: Microsoft MMCSS dokümanı + JINSHI MMCSS Games Task referansı.
+- **`MouseSensitivity=10` eklendi.** Tek 1:1 değerdir; 10 dışındaki her değer
+  count'ları ölçekler (skip/duplicate). Daha önce ayarlanmıyordu.
+- `SmoothMouseXCurve`/`SmoothMouseYCurve` **dokunulmuyor**: `MouseSpeed=0` iken
+  Windows bunları zaten okumaz. Silmek veya `00` yapmak gereksiz.
+
+### Eklenen
+- `Get-Cs2TargetCheck.ps1`: MouseSensitivity ve SmoothMouseX/Y kontrolü,
+  MMCSS Scheduling Category (High ise FAIL) ve GPU Priority (inert, INFO).
+
+### Belgelenen
+- RAPOR.md: MMCSS ve Mouse satırları kaynaklara göre düzeltildi.
+- Yapma listesine eklendi: MMCSS High, SmoothMouse silme/00, MouseSensitivity≠10.
+- docs/HEDEF-PROFIL.md bölüm 5 güncellendi.
+
 ## [v1.7.0] — 2026-11-10
 
 ### Eklenen

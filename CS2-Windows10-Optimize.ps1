@@ -88,8 +88,12 @@
   Disk idle timeout 0. Optional; affects the 240 GB SATA SSD power state.
 
 .PARAMETER SetMmcssGameProfile
-  MMCSS Games profile: GPU Priority 8, Priority 6, Scheduling Category High,
-  SFIO Priority High. Optional; harmless but usually a no-op for CS2.
+  MMCSS Games task: GPU Priority 8, Priority 6, Scheduling Category Medium,
+  SFIO Priority High.
+  NOT: Scheduling Category "High" YAPILMAZ - oyun thread'lerini Pro Audio
+  bandina (23-26) sokup sistem thread'lerini starve ederek stutter uretebilir.
+  Microsoft dokumantasina gore "GPU Priority" ve "SFIO Priority" sistem tarafindan
+  kullanilmaz; Priority yalnizca "Medium" kategoride anlamlidir.
 
 .PARAMETER DisablePowerThrottling
   PowerThrottlingOff = 1. Optional; stops EcoQoS throttling of game threads.
@@ -405,14 +409,15 @@ Save-PowerCfgBackup -BackupDir $script:BackupDir
 # Scheduler / MMCSS / power throttling (optional)
 # ---------------------------------------------------------------------------
 if ($SetMmcssGameProfile) {
-    Write-Step 'MMCSS Games profile'
+    Write-Step 'MMCSS Games task'
     $gamesKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games'
     Set-RegDword $gamesKey 'GPU Priority' 8
     Set-RegDword $gamesKey 'Priority' 6
-    Set-RegString $gamesKey 'Scheduling Category' 'High'
+    Set-RegString $gamesKey 'Scheduling Category' 'Medium'
     Set-RegString $gamesKey 'SFIO Priority' 'High'
-    Write-Ok 'Games profile: GPU Priority 8, Priority 6, Scheduling Category High.'
-    Write-Info 'Usually a no-op for CS2; measure before keeping.'
+    Write-Ok 'Games task: GPU Priority 8, Priority 6, Scheduling Category Medium, SFIO Priority High.'
+    Write-Info 'GPU Priority ve SFIO Priority Microsoft dokumanina gore kullanilmiyor (inert).'
+    Write-Info 'Scheduling Category "High" bilerek yapilmadi: Pro Audio bandina sokup stutter yaratabilir.'
 }
 
 if ($DisablePowerThrottling) {
@@ -442,7 +447,12 @@ if ($DisableMouseAcceleration) {
     Set-RegString $mouseKey 'MouseSpeed' '0'
     Set-RegString $mouseKey 'MouseThreshold1' '0'
     Set-RegString $mouseKey 'MouseThreshold2' '0'
-    Write-Ok 'Mouse acceleration disabled. CS2 raw input bypasses this anyway.'
+    # MouseSensitivity 10 = pointer hiz slaydinin 6. notch'u = tek 1:1 deger.
+    # Diger degerler count'lari olcekler (skip/duplicate).
+    Set-RegString $mouseKey 'MouseSensitivity' '10'
+    Write-Ok 'Mouse acceleration off (MouseSpeed/Threshold = 0), MouseSensitivity = 10.'
+    Write-Info 'SmoothMouseXCurve/YCurve dokunulmadi: MouseSpeed=0 iken zaten okunmazlar.'
+    Write-Info 'CS2 raw input kullandigi icin bu ayar masaustunu etkiler, nişan hizini degil.'
 }
 
 if ($SetBestPerformance) {

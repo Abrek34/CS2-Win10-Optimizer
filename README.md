@@ -175,6 +175,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ## Sürüm
 
+- **v1.8.0** — MMCSS `Scheduling Category=High` hatası düzeltildi (stutter üretiyordu), `MouseSensitivity=10` eklendi.
 - **v1.7.0** — DPI/sens/polling matrisi hesaplayıcısı, RawAccel çarpan denetim aracı ve 8K Hz polling analizi eklendi.
 - **v1.6.0** — 8K Hz mouse desteği: polling matrisi (ölçülecek), DPI saturation kuralı, `-PollingHz` ölçüm parametresi.
 - **v1.5.0** — Hedef profil tanımı (`docs/HEDEF-PROFIL.md`) ve hedef denetim aracı (`Get-Cs2TargetCheck.ps1`) eklendi.

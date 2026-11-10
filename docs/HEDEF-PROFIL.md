@@ -143,6 +143,8 @@ kapsamında, base profile'e uygulanmaz).
 | **Mouse polling rate** | **ÖLÇÜLECEK — 8000 Hz destekli fare** | Bkz. aşağıdaki polling matrisi; sabit değer yok, ölçümle karar verilir |
 | **Mouse DPI** | **Polling'i doyurmak yeterli** (8000 Hz için ≥1600 DPI) | Düşük DPI + yüksek polling = sensör stutter |
 | **Enhance pointer precision** | **Off** (isteğe bağlı) | CS2'de **etkisiz** (raw input) — masaüstü tutarlılığı için |
+| **MouseSensitivity** | **10** | Tek 1:1 değer; 10 dışındaki her değer count'ları ölçekler |
+| **SmoothMouseXCurve/YCurve** | **Dokunma** | `MouseSpeed=0` iken Windows bunları zaten okumaz; silmek/`00` yapmak gereksiz |
 | **Pointer speed** | 6/11 | CS2'de etkisiz; masaüstü tutarlılığı için |
 | **Fare yazılımı: acceleration / angle snapping / smoothing** | **Hepsi KAPALI** | **Asıl etkili olan budur** — cihaz içinde uygulanır, raw input onu bypass edemez |
 | **RawAccel "accel off"** | **CS2 için gerekli DEĞİL** | CS2 zaten raw input kullanıyor; ölçülebilir fark yok (bkz. 5.7) |
