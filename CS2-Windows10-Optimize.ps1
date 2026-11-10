@@ -19,6 +19,7 @@
     - Optional per-exe fullscreen optimizations off
     - Optional Windows GPU preference = High performance for cs2.exe
     - Optional restore of Windows timer defaults (removes HPET/timer bcdedit tweaks)
+    - Optional MPO disable, Storage Sense disable, background apps disable, system VRR toggle
     - Backups, restore point, transcript, and -Revert support
 
 .PARAMETER Cs2Path
@@ -58,6 +59,21 @@
 .PARAMETER SkipNic
   Do not change network adapter advanced properties.
 
+.PARAMETER DisableMpo
+  Disable Multi-Plane Overlay (DWM OverlayTestMode = 5). Optional; may reduce flicker/stutter.
+  A/B test; reboot required.
+
+.PARAMETER DisableStorageSense
+  Disable Storage Sense automatic cleanup. Optional; avoids background disk I/O.
+
+.PARAMETER DisableBackgroundApps
+  Disable global background app access. Optional; reduces background CPU/memory usage.
+
+.PARAMETER EnableSystemVrr
+  Enable system-wide VRR optimization. Optional; only use on VRR-capable monitors.
+
+.PARAMETER DisableSystemVrr
+  Disable system-wide VRR optimization. Optional; A/B test.
 .EXAMPLE
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1
 
@@ -80,7 +96,12 @@ param(
     [switch]$DisableFastStartup,
     [switch]$DisableFullscreenOptimizations,
     [switch]$RestoreTimerDefaults,
-    [switch]$SkipNic
+    [switch]$SkipNic,
+    [switch]$DisableMpo,
+    [switch]$DisableStorageSense,
+    [switch]$DisableBackgroundApps,
+    [switch]$EnableSystemVrr,
+    [switch]$DisableSystemVrr
 )
 
 $ErrorActionPreference = 'Continue'
@@ -227,11 +248,18 @@ if ($EnableHags -and $DisableHags) {
     exit 1
 }
 
+if ($EnableSystemVrr -and $DisableSystemVrr) {
+    Write-Err 'Use either -EnableSystemVrr or -DisableSystemVrr, not both.'
+    Stop-Transcript | Out-Null
+    exit 1
+}
+
 if (-not $Apply) {
     Write-Step 'DRY RUN'
     Write-Info 'No changes were made. Re-run with -Apply to apply.'
     Write-Info 'Recommended first run: -Apply -AddDefenderExclusions -RestoreTimerDefaults'
     Write-Info 'Optional A/B tests: -EnableHags OR -DisableHags, -TuneNicLatency, -DisableFullscreenOptimizations'
+    Write-Info 'Optional GameBoost-derived tweaks: -DisableMpo, -DisableStorageSense, -DisableBackgroundApps, -EnableSystemVrr OR -DisableSystemVrr'
     Write-Info "Log: $script:LogPath"
     Stop-Transcript | Out-Null
     exit 0
@@ -267,7 +295,10 @@ $keys = @(
     'HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers',
     'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power',
     'HKCU\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers',
-    'HKCU\Software\Microsoft\DirectX\UserGpuPreferences'
+    'HKCU\Software\Microsoft\DirectX\UserGpuPreferences',
+    'HKLM\SOFTWARE\Microsoft\Windows\Dwm',
+    'HKCU\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy',
+    'HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications'
 )
 foreach ($k in $keys) { Backup-RegKey $k }
 
@@ -323,6 +354,41 @@ if ($DisableFastStartup) {
     Write-Ok 'Fast Startup disabled.'
 }
 
+# ---------------------------------------------------------------------------
+# Optional GameBoost-derived tweaks (default: off)
+# ---------------------------------------------------------------------------
+if ($DisableMpo -or $DisableStorageSense -or $DisableBackgroundApps -or $EnableSystemVrr -or $DisableSystemVrr) {
+    Write-Step 'Optional: GameBoost-derived tweaks'
+
+    if ($DisableMpo) {
+        Set-RegDword 'HKLM:\SOFTWARE\Microsoft\Windows\Dwm' 'OverlayTestMode' 5
+        Write-Ok 'MPO disabled (OverlayTestMode = 5). Reboot required. A/B test.'
+    }
+
+    if ($DisableStorageSense) {
+        Set-RegDword 'HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy' '01' 0
+        Write-Ok 'Storage Sense disabled.'
+    }
+
+    if ($DisableBackgroundApps) {
+        Set-RegDword 'HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications' 'GlobalUserDisabled' 1
+        Write-Ok 'Global background app access disabled.'
+    }
+
+    if ($EnableSystemVrr -or $DisableSystemVrr) {
+        $vrrValue = if ($EnableSystemVrr) {
+            'SwapEffectUpgradeEnable=1;VRROptimizeEnable=1;'
+        } else {
+            'SwapEffectUpgradeEnable=1;VRROptimizeEnable=0;'
+        }
+        Set-RegString 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' 'DirectXUserGlobalSettings' $vrrValue
+        if ($EnableSystemVrr) {
+            Write-Ok 'System-wide VRR optimization enabled. A/B test.'
+        } else {
+            Write-Ok 'System-wide VRR optimization disabled. A/B test.'
+        }
+    }
+}
 # ---------------------------------------------------------------------------
 # Per-exe settings (optional)
 # ---------------------------------------------------------------------------

@@ -495,6 +495,7 @@ Router tarafı: SQM/fq_codel, bufferbloat testi, oyun trafiği için QoS. Bu, Wi
 - Opsiyonel FSO off (cs2.exe).
 - Windows GPU preference = High performance (cs2.exe).
 - Opsiyonel timer BCD temizliği (`useplatformclock`, `disabledynamictick`, `tscsyncpolicy`, `useplatformtick`).
+- Opsiyonel GameBoost-derived tweak'ler: MPO disable, Storage Sense disable, background apps disable, system VRR toggle.
 - Registry backup, restore point, transcript, `-Revert`.
 
 **Kapsamadıkları (bu raporun konusu):**

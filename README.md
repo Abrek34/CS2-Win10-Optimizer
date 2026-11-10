@@ -77,6 +77,7 @@ Raporun içinde: işletim sistemi, CPU, RAM modülleri (slot, üretici, hız, ya
 - Opsiyonel FSO off (`-DisableFullscreenOptimizations`).
 - Windows GPU preference = High performance (`cs2.exe`).
 - Opsiyonel timer BCD temizliği (`-RestoreTimerDefaults`).
+- Opsiyonel GameBoost-derived tweak'ler: MPO disable (`-DisableMpo`), Storage Sense disable (`-DisableStorageSense`), background apps disable (`-DisableBackgroundApps`), system VRR toggle (`-EnableSystemVrr` / `-DisableSystemVrr`).
 - Registry backup, restore point, transcript, `-Revert`.
 
 ## Script ne yapmaz?
