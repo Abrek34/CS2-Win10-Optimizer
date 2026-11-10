@@ -1,0 +1,19 @@
+# Script çıktıları / yedekler
+*.log
+CS2-Optimize-Backup-*/
+CS2-Optimize-Backup-*
+Transcript*.txt
+
+# Release paketleri
+dist/
+*.zip
+
+# İşletim sistemi gereksizleri
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editör
+.vscode/
+.idea/
+*.swp

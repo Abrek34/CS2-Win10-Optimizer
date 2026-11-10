@@ -1,0 +1,636 @@
+# CS2 / Windows 10 / NVIDIA Optimizasyon Raporu
+
+> **Sürüm:** v1.0 — 10 Kasım 2026  
+> **Durum:** Çalışma dosyası. Uygulananlar, planlananlar ve ölçüm sonuçları bu dosyada takip edilecek.  
+> **Kapsam:** Windows 10 işletim sistemi, NVIDIA sürücü/Inspector katmanı, BIOS/firmware ve ölçüm metodolojisi.  
+> **Kapsam dışı:** CS2 oyun içi video/Crosshair/autoexec ayarları.
+
+---
+
+## 0. Özet
+
+- Amaç: ortalama FPS'ten çok **1% low / 0.1% low, frametime kararlılığı ve input latency** iyileştirmesi.
+- Temel ilke: **tek değişiklik → ölçüm → karar**. Aynı anda 10 tweak uygulanmayacak.
+- Bu sistemde en yüksek getirisi olan katmanlar sırasıyla:
+  1. RAM/CPU/ring stabilitesi (BIOS),
+  2. Windows güç ve arka plan yükü,
+  3. NVIDIA sürücü profili,
+  4. IRQ/MSI/timer gibi ölçüm gerektiren ileri ayarlar.
+- **Önemli düzeltme:** `Win32PrioritySeparation=38` (0x26) "kısa sabit quantum" değildir. Doğrusu **short + variable + 3:1 foreground boost**'tur ve Windows 10 client'ta varsayılan `2` değeri zaten buna çözümlenir. Yani 38 genellikle **no-op**'tur; tek başına FPS artışı beklenmemeli. Yine de açıkça sabitlemek için tutulabilir.
+- **Önemli uyarı:** `NetworkThrottlingIndex` kapatılmamalı. Kapatmak bazı sistemlerde NDIS.sys DPC latency'sini artırıyor.
+- **Önemli uyarı:** Z390'da resmî Resizable BAR yok; RTX 3070 için Inspector'dan rBAR zorlanmamalı.
+
+---
+
+## 1. Sistem ve mevcut durum
+
+| Bileşen | Değer / Not |
+|---|---|
+| CPU | Intel Core i9-9900K, 8C/16T, 5.0 GHz fixed |
+| Anakart | Z390 (PCIe 3.0, resmî ReBAR yok) |
+| GPU | NVIDIA RTX 3070, 8 GB GDDR6 |
+| RAM | 64 GB, 4000 MHz CL18-22-22-42 |
+| OS | Windows 10 22H2 (destek dışı; tüketici ESU penceresi Ekim 2026'da kapandı) |
+| Monitör | **Doldurulacak:** çözünürlük + Hz |
+| Ağ | **Doldurulacak:** Ethernet/Wi-Fi, router modeli |
+| CS2 yolu | Script otomatik buluyor; gerekirse `-Cs2Path` ile verilecek |
+
+### Mevcut çalışma dosyaları
+
+| Dosya | Ne yapar | Not |
+|---|---|---|
+| `CS2-Windows10-Optimize.ps1` | Ana, parametreli script. Dry-run, yedek, restore point, `-Revert`. | Raporun “Windows” bölümünün büyük kısmını uygular. |
+| `CS2-Desktop-OneClick.ps1` | Aynı değişikliklerin daha basit, tek tık varyantı. | Ana script varken ikinci kez çalıştırmaya gerek yok. |
+| `CS2-Optimize-Baslat.cmd` | PowerShell başlatıcı. | Yönetici olarak çalıştırılmalı. |
+
+> İki script de **oyun içi ayarlara, BIOS'a ve NVIDIA Control Panel'e dokunmuyor.** Bu raporun NVIDIA/BIOS bölümleri ayrıca uygulanacak.
+
+---
+
+## 2. Ölçüm protokolü (tweak'lerden önce)
+
+### Araçlar
+
+| Araç | Ne için | Not |
+|---|---|---|
+| **CapFrameX** | avg / 1% low / 0.1% low, frametime grafiği | CS2 benchmark map, 3 run |
+| **LatencyMon** | DPC/ISR latency, sürücü kaynaklı takılma | 5-10 dk boşta + oyun sırasında |
+| **HWiNFO64** | WHEA, effective clock, RAM sıcaklığı, VRM, GPU clock | Log açık kalsın |
+| **PresentMon** | input-to-photon / present latency | CapFrameX ile birlikte |
+| **NVIDIA Inspector** | GPU clock/voltage/thermal izleme | OC için Afterburner daha pratik |
+
+### Kurallar
+
+1. Her değişiklikten önce **3 run** baseline al.
+2. Aynı map, aynı server/bot setup, aynı saat.
+3. Değişiklikten sonra **3 run** daha al.
+4. Fark yoksa **geri al**. “Belki işe yarar” diye tutma.
+5. WHEA 19/18 varsa performans değil **stabilite** sorunu olarak ele al.
+
+### Baseline tablosu (doldurulacak)
+
+| Metrik | Baseline | Tweak sonrası | Fark | Karar |
+|---|---:|---:|---:|---|
+| Avg FPS | | | | |
+| 1% low | | | | |
+| 0.1% low | | | | |
+| Frametime p99 (ms) | | | | |
+| DPC max (µs) | | | | |
+| GPU clock (avg) | | | | |
+| CPU effective clock | | | | |
+| WHEA hataları | | | | |
+
+---
+
+## 3. BIOS / firmware katmanı
+
+> BIOS'a girmeden önce mevcut profili kaydet (OC profile slotu). Her değişiklik sonrası Windows'ta HWiNFO ile WHEA kontrol et.
+
+| Ayar | Öneri | Neden / Not | Durum |
+|---|---|---|---|
+| BIOS sürümü | Son stabil sürüm | Z390 firmware'leri RAM uyumluluğunu etkiler | ⬜ |
+| XMP / DOCP | **XMP 4000 CL18** açık | 64 GB'da IMC yükü yüksek; stabilite test edilecek | ⬜ |
+| RAM voltajı | XMP'nin istediği değer (genelde 1.35-1.40 V) | 4 DIMM/dual-rank ise 1.40 V gerekebilir; ısıyı izle | ⬜ |
+| VCCIO / VCCSA | Auto ile başla; 4000 için gerekirse 1.20-1.30 V aralığı | Çok yüksek verme; stabilite testi şart | ⬜ |
+| CPU çarpanı | 5.0 GHz all-core | CS2 AVX ağırlıklı değil; 5.0 rahat | ✅ mevcut |
+| CPU voltajı / LLC | Kararlı en düşük Vcore; LLC orta | 5.0 için tipik 1.25-1.35 V; silikona göre | ✅ mevcut |
+| Ring / uncore | 4.7 GHz başlangıç | Ring düşürmek 1% low'u bozabilir | ⬜ |
+| C-states | **Disabled** (veya C1E off) | Fixed 5.0 ile tutarlılık; sıcaklık artar | ⬜ |
+| Speed Shift (HWP) | Enabled; Windows EPP=0 | 9900K HWP destekler; boşta güç tasarrufu | ⬜ |
+| Spread Spectrum | **Disabled** | BCLK 100 stabilitesi | ⬜ |
+| PCIe ASPM | **Disabled** | GPU/NVMe link power saving kapat | ⬜ |
+| Above 4G Decoding | **Enabled** | RTX 3070 için gerekli; ReBAR için değil | ⬜ |
+| Resizable BAR | **Disabled / Auto** | Z390 resmî desteklemiyor; zorlama | ⬜ |
+| HPET | BIOS default | Zorla açma/kapatma; Windows tarafında da dokunma | ⬜ |
+| Fast Boot | İsteğe bağlı | Driver değişiminde kapatmak debug'ı kolaylaştırır | ⬜ |
+| Fan eğrileri | CPU 80 °C'de %100'e yakın; GPU agresif | Termal throttle'ı önle | ⬜ |
+| TPM / PTT | BitLocker kullanılıyorsa açık | Win10 için zorunlu değil | ⬜ |
+
+### RAM stabilite testi
+
+- **TM5 anta777** (extreme) veya **Karhu RAM Test**.
+- 4000 CL18'de hata varsa sırasıyla:
+  1. 3733 CL17,
+  2. 3600 CL16,
+  3. 3600 CL18.
+- 64 GB'da `tRFC`, `tREFI`, `tFAW`, `tRRD` latency'ye en çok dokunan alt zamanlamalar.
+- WHEA 19 varsa voltaj/timing düşür, “mavi ekran yok” yeterli değil.
+
+---
+
+## 4. Windows 10 — güç yönetimi
+
+### 4.1 Güç planı
+
+Ana script `SCHEME_MIN` (High Performance) seçiyor. Alternatifler:
+
+| Plan | Ne zaman | Not |
+|---|---|---|
+| **High Performance** | Varsayılan öneri | Core parking kapalı, disk/USB uyku kapalı |
+| **Ultimate Performance** | İstersen dene | `powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61`; her sistemde görünmez |
+| Balanced | Dizüstü/ısı sorunu varsa | Masaüstünde önerilmez |
+
+### 4.2 powercfg komutları
+
+```powershell
+# Yönetici PowerShell
+
+# High Performance
+powercfg /setactive SCHEME_MIN
+
+# PCIe ASPM kapat
+powercfg /setacvalueindex SCHEME_CURRENT SUB_PCIEXPRESS ASPM 0
+
+# USB selective suspend kapat
+powercfg /setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+
+# Disk uyku kapat
+powercfg /setacvalueindex SCHEME_CURRENT SUB_DISK DISKIDLE 0
+
+powercfg /setactive SCHEME_CURRENT
+```
+
+Opsiyonel (fixed 5.0 kullanıyorsan mantıklı; sıcaklık artar):
+
+```powershell
+# Core parking kapat (zaten kapalı olabilir; önce powercfg /q ile bak)
+powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 100
+powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMAXCORES 100
+
+# CPU frekansını sabit tut
+powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 100
+powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMAX 100
+
+# OS tarafından C-state kapatma
+powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR IDLEDISABLE 1
+
+# Energy Performance Preference = max performance (Speed Shift)
+powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFEPP 0
+
+# Aktif soğutma
+powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR SYSCOOLPOL 1
+
+powercfg /setactive SCHEME_CURRENT
+```
+
+> `IDLEDISABLE=1` ve BIOS C-states off birlikte gereksiz olabilir; birini seç. Sıcaklık/VRM testi yap.
+
+### 4.3 Registry: scheduler ve MMCSS
+
+| Ayar | Konum | Değer | Etki / Not | Durum |
+|---|---|---|---|---|
+| `Win32PrioritySeparation` | `HKLM\SYSTEM\CurrentControlSet\Control\PriorityControl` | `38` (0x26) | Short+variable+3:1; **Win10 client default 2 ile aynı**. Genelde no-op. | ⬜ |
+| `SystemResponsiveness` | `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile` | `10` | MMCSS arka plan rezervi %20 → %10. 0 yapma. | ⬜ |
+| `NetworkThrottlingIndex` | aynı yer | **dokunma** | Kapatmak NDIS.sys DPC latency'sini artırabilir. | ❌ |
+| `PowerThrottlingOff` | `HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling` | `1` | EcoQoS'un oyun thread'lerini kısmasını engeller. | ⬜ |
+| `Games` profili | `...\SystemProfile\Tasks\Games` | `GPU Priority=8`, `Priority=6`, `Scheduling Category=High`, `SFIO Priority=High` | CS2'de büyük ihtimalle placebo; zararsız. | ⬜ |
+| `DisablePagingExecutive` | `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management` | `1` | Kernel'i RAM'de tutar; 64 GB'da zararsız, etki küçük. | ⬜ |
+| `HwSchMode` | `HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers` | `2` = HAGS açık, `1` = kapalı | A/B test; bazı sistemlerde stutter. | ⬜ |
+
+### 4.4 Önemli düzeltme: `Win32PrioritySeparation`
+
+- `38` / `0x26` = **short quantum, variable, 3:1 foreground boost**.
+- Windows 10 client'ta `2` zaten bu moda çözümlenir.
+- Yani 38'e geçmek çoğu sistemde **davranış değiştirmez**; “FPS tweak” olarak sunulmamalı.
+- Alternatif `0x2A` (42) = short, fixed, 3:1; fixed olduğu için foreground quantum avantajı pratikte kalkar. Körlemesine 42/38 denemesi yapma; ölç.
+
+### 4.5 Güç ile ilgili yapılmayacaklar
+
+- `NetworkThrottlingIndex=0xFFFFFFFF` → ❌
+- `useplatformclock=true` (HPET zorlama) → ❌
+- `disabledynamictick=yes` → sadece ölçerek; varsayılan olarak ❌
+- Pagefile kapatma → ❌
+- Tüm servisleri disable etme → ❌
+
+---
+
+## 5. Windows 10 — GPU, IRQ ve timer
+
+### 5.1 MSI mode
+
+| Adım | Ne yapılacak | Not | Durum |
+|---|---|---|---|
+| 1 | GPU/NIC'in zaten MSI kullanıp kullanmadığını kontrol et | Device Manager → Properties → Resources; veya `MSI_util_v3` | ⬜ |
+| 2 | Zaten MSI ise **dokunma** | Gereksiz risk | ⬜ |
+| 3 | Değilse `MSISupported=1` + reboot | GPU'da siyah ekran riski; Safe Mode hazır olsun | ⬜ |
+| 4 | Interrupt Priority = High | Sadece LatencyMon'da belirgin DPC varsa; körlemesine yapma | ⚠️ |
+| 5 | Interrupt affinity | En son adım; CPU 0 sistem interrupt'ları için yoğun | ⚠️ |
+
+### 5.2 Timer resolution
+
+| Ayar | Öneri | Not |
+|---|---|---|
+| `bcdedit /set disabledynamictick yes` | Varsayılan: **yapma** | Bazı sistemlerde micro-stutter azalır; güç/ısı artar. A/B test. |
+| `bcdedit /set useplatformclock true` | **Yapma** | HPET zorlama genelde latency'yi artırır. |
+| 0.5 ms timer araçları (ISLC, SetTimerResolution) | Sadece ölçümle | Windows 10 process kapanınca eski çözünürlüğe döner; sürekli arka plan gerekir. |
+| `GlobalTimerResolutionRequests=1` | İsteğe bağlı | Win10 2004+; global timer request. Ölçmeden uygulama. |
+
+### 5.3 HAGS (Hardware-accelerated GPU scheduling)
+
+- `HwSchMode=2` → açık, `1` → kapalı.
+- CS2'de bazı sistemlerde açıkken 1% low iyileşiyor, bazılarında stutter artıyor.
+- **A/B test:** 3 run açık, 3 run kapalı; aynı map.
+- RTX 3070 + Win10 22H2 destekler.
+
+---
+
+## 6. Windows 10 — GameDVR, FSO, görsel ve input
+
+| Ayar | Konum | Değer | Not | Durum |
+|---|---|---|---|---|
+| Game DVR | `HKCU\System\GameConfigStore` | `GameDVR_Enabled=0` | Arka plan kaydı kapat | ✅ script |
+| App capture | `HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR` | `AppCaptureEnabled=0` | | ✅ script |
+| GameDVR policy | `HKLM\SOFTWARE\Policies\Microsoft\Windows\GameDVR` | `AllowGameDVR=0` | | ✅ script |
+| Game Mode | `HKCU\Software\Microsoft\GameBar` | `AutoGameModeEnabled=1`, `AllowAutoGameMode=1` | Açık başla; 1% low bozarsa kapat | ✅ script |
+| Game Bar startup | `HKCU\Software\Microsoft\GameBar` | `ShowStartupPanel=0`, `UseNexusForGameBarEnabled=0` | | ⬜ |
+| FSO (cs2.exe) | `HKCU\...\AppCompatFlags\Layers` | `~ DISABLEDXMAXIMIZEDWINDOWEDMODE` | Alt-tab/stabilite A/B test | ⬜ opsiyonel |
+| GPU preference | `HKCU\Software\Microsoft\DirectX\UserGpuPreferences` | `cs2.exe` = `GpuPreference=2;` | Windows Graphics settings High performance | ✅ script |
+| Görsel efektler | `HKCU\...\Explorer\VisualEffects` | `VisualFXSetting=2` | Best performance; kozmetik | ⬜ |
+| Mouse accel | `HKCU\Control Panel\Mouse` | `MouseSpeed=0`, `MouseThreshold1=0`, `MouseThreshold2=0` | Raw input zaten açık; yine de kapat | ⬜ |
+| Transparency | `HKCU\...\Themes\Personalize` | `EnableTransparency=0` | Küçük etki | ⬜ |
+
+> Game Mode: CS2'de çoğu sistemde açık kalması daha iyi. Kapatacaksan 1% low ve frametime p99'a bak, “FPS arttı” diye karar verme.
+
+---
+
+## 7. Windows 10 — arka plan, bellek, depolama
+
+| Konu | Öneri | Etki / Risk | Durum |
+|---|---|---|---|
+| Defender exclusions | Sadece CS2 klasörü + `cs2.exe` | Real-time protection açık kalır; güvenlik trade-off'u | ✅ script opsiyonel |
+| Startup apps | Razer/iCUE/Armoury/Nahimic/Sonic Studio kapat | 1% low'un en yaygın suçluları | ⬜ |
+| SysMain (Superfetch) | **Ölçerek** kapat | NVMe'de etki tartışmalı; uygulama açılışı yavaşlar | ⚠️ |
+| Windows Search | Kullanmıyorsan indexing kapat | Arka plan disk I/O azalır | ⬜ |
+| Delivery Optimization | Upload limiti | FPS'e etkisi yok; bant genişliği | ⬜ |
+| Telemetry servisleri | İsteğe bağlı | Performans etkisi ihmal edilebilir; gizlilik | ⬜ |
+| Pagefile | **System managed** bırak | 64 GB var diye kapatma; anti-cheat/uygulama sorunları | ❌ kapatma |
+| NVMe | Firmware güncel, PCIe 3.0 x4, disk sleep off | `powercfg` DISKIDLE=0 | ⬜ |
+| Memory compression | **Açık bırak** | Kapatmak RAM baskısında zarar verir | ❌ |
+| Prefetch/Superfetch | Varsayılan | NVMe'de ölçülebilir fark yok | ⬜ |
+
+### Defender exclusion komutu (script zaten yapıyor)
+
+```powershell
+Add-MpPreference -ExclusionPath "C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive"
+Add-MpPreference -ExclusionProcess "cs2.exe"
+```
+
+> Bu, Defender'ı kapatmaz. Sadece CS2 dosyalarının sürekli taranmasını engeller. Yine de bir güvenlik trade-off'udur; klasörün temiz olduğundan emin ol.
+
+---
+
+## 8. Windows 10 — ağ (kısa)
+
+> Detaylı NIC/router ayarları önceki mesajda verildi. Burada sadece OS tarafı özet.
+
+| Ayar | Öneri | Not |
+|---|---|---|
+| Ethernet | Kablolu | Wi-Fi'ye göre daha düşük jitter |
+| NIC power saving | Disabled | EEE/Green Ethernet/Wake on Magic Packet kapalı |
+| Interrupt Moderation | **A/B test** | Kapatmak DPC/CPU yükünü artırabilir; her NIC'te iyi değil |
+| Flow Control | **A/B test** | Aynı şekilde |
+| RSS | Enabled | Çok çekirdekli dağıtım |
+| `netsh int tcp set global autotuninglevel=normal` | Varsayılan | Abartılı TCP tweak yapma |
+| `NetworkThrottlingIndex` | **Dokunma** | Kapatmak DPC latency'sini artırır |
+| Nagle | **Dokunma** | CS2 UDP; etkisi yok/yanlış yönlü olabilir |
+
+Router tarafı: SQM/fq_codel, bufferbloat testi, oyun trafiği için QoS. Bu, Windows tweak'lerinden daha büyük etki yapabilir.
+
+---
+
+## 9. NVIDIA — sürücü kurulumu
+
+| Adım | Öneri | Not |
+|---|---|---|
+| Sürücü tipi | **Game Ready** | Studio'ya gerek yok |
+| Temiz kurulum | **DDU** ile | Özellikle sürücü düşürürken/yükseltirken |
+| NVIDIA App / GFE | Overlay istemiyorsan kapat | Overlay input/frametime ölçümünü etkileyebilir |
+| Kurulum sonrası | 3D ayarları sıfırlanır | Profili yeniden uygula |
+| Profil yedeği | Inspector `.nip` export | Sürücü güncellemesinden sonra geri yükle |
+| Sürücü sürümü | Son stabil | Beta sürücülerden kaçın; sorun varsa bir önceki WHQL |
+
+---
+
+## 10. NVIDIA Control Panel / NVIDIA App — CS2 profili
+
+> Ayarları **global** değil, **`cs2.exe` profiline** uygula. Global “Prefer max performance” boşta güç/ısıyı artırır.
+
+| Ayar | Değer | Neden / Not |
+|---|---|---|
+| Power management mode | **Prefer maximum performance** | Buy fazında GPU downclock'unu engeller; en önemli tek ayar |
+| Low Latency Mode | **Off** (CS2'de Reflex açıksa) / **Ultra** (Reflex kapalıysa) | Reflex varsa sürücü ayarı gereksiz; üst üste bindirme |
+| Vertical sync | **Off** (G-Sync + Reflex istisnası) | Tek başına input lag ekler |
+| Max frame rate | **Off** / G-Sync varsa refresh−3 | Çift cap yapma; cap'i tek yerden yönet |
+| Preferred refresh rate | **Highest available** | Monitörün max Hz'ini zorlar |
+| Texture filtering — Quality | **High performance** | Ücretsiz FPS; CS2'de görsel fark ihmal edilebilir |
+| Anisotropic sample optimization | **On** | Texture filtering maliyetini düşürür |
+| Trilinear optimization | **On** | Aynı |
+| Shader cache size | **Unlimited / 10 GB** | Shader compile stutter'ını azaltır; **disable etme** |
+| Threaded optimization | **Auto / On** | Source 2 thread yönetimini bozmamak için Auto iyi |
+| Triple buffering | **Off** | OpenGL için; CS2'de gereksiz |
+| FXAA / MFAA | **Off** | Görüntüyü bulanıklaştırır |
+| Ambient occlusion | **Off** | Gereksiz GPU maliyeti |
+| DSR / Image scaling | **Off** | Çift ölçekleme artifact yapar |
+| G-Sync | Monitör destekliyorsa **Fullscreen only** | VRR + Reflex + V-Sync + cap kombinasyonu |
+| Background app max frame rate | **30** (NVIDIA App) | Alt-tab'da GPU'yu boşa çalıştırmaz |
+| Monitor technology | G-Sync Compatible (varsa) | Monitöre göre |
+
+### G-Sync + Reflex + V-Sync notu
+
+- G-Sync varsa tear-free + düşük latency için: **G-Sync On + V-Sync On (NVCP) + Reflex On + fps cap (refresh−3)**.
+- Rekabetçi CS2'de V-Sync off tercih edilebilir; o zaman G-Sync'in kapsamı dışında kalırsın.
+- Bu üçlüyü aynı anda açıp “Ultra Low Latency” de açma; çakışır.
+
+---
+
+## 11. NVIDIA Profile Inspector — CS2 profili
+
+### 11.1 İki farklı araç
+
+| Araç | Ne yapar | Kaynak |
+|---|---|---|
+| **NVIDIA Inspector** | İzleme, clock/voltage, fan, overclock | `orbmu2k.de` |
+| **NVIDIA Profile Inspector** | Sürücü profili (DRS) editörü | `github.com/Orbmu2k/nvidiaProfileInspector` |
+
+> “Optimized” üçüncü taraf build'leri kullanma. Resmî GitHub/orbmu2k dışına çıkma.
+
+### 11.2 DRS ayarları
+
+| Kategori | Ayar | Değer | Not |
+|---|---|---|---|
+| Sync & Refresh | Frame Rate Limiter V3 | **Off** / cap | Cap kullanacaksan tek yerden |
+| Sync & Refresh | Maximum Pre-Rendered Frames | **1** | Reflex/LLM varsa zaten etkisiz |
+| Sync & Refresh | Low Latency Mode | **Off** (Reflex açık) / **Ultra** (kapalı) | “Ultra Low Latency” ile birlikte set etme |
+| Sync & Refresh | Vertical Sync | **Force off** | G-Sync + Reflex istisnası |
+| Sync & Refresh | Preferred Refresh Rate | **Highest available** | |
+| Texture Filtering | Texture Filtering — Quality | **High performance** | |
+| Texture Filtering | Anisotropic Filter — Sample Optimization | **On** | |
+| Texture Filtering | Texture Filtering — Trilinear Optimization | **On** | |
+| Common | Power Management — Mode | **Prefer maximum performance** | |
+| Common | Shader Cache — Cachesize | **Unlimited / 10 GB** | Driver Default da olur; disable etme |
+| Common | Threaded Optimization | **Auto / On** | |
+| Common | CUDA — Force P2 State | **Off** | |
+| Common | Ansel — Enabled | **Off** | |
+| Common | rBAR — Feature / Options | **Dokunma** | Z390'da resmî ReBAR yok |
+| Antialiasing | FXAA / MFAA | **Off** | |
+| Antialiasing | Ambient Occlusion | **Off** | |
+| Common | DSR — Factors | **Off** | |
+
+### 11.3 Uyarılar
+
+- `Low Latency Mode` + Reflex + driver cap'i aynı anda kullanma.
+- `rBAR`'ı Z390'da zorlama; boot/black screen riski.
+- Sürücü güncellemesi DRS ayarlarını sıfırlar; `.nip` export et.
+- Bazı ayarlar sürücü sürümüne göre yeniden adlandırılabilir; değer mantığı aynı.
+
+---
+
+## 12. NVIDIA Inspector — overclock / undervolt (RTX 3070)
+
+| Ayar | Başlangıç | Not |
+|---|---|---|
+| Core offset | **+100 MHz** | Stabilse +150'ye çık; artifact varsa geri çek |
+| Memory offset | **+500 MHz** | GDDR6; +800'e kadar denenebilir; artifact/çökme = geri |
+| Power limit | **%105-110** | Sıcaklık ve VRM izle |
+| Temp limit | **83-90 °C** | 3070 için makul |
+| Fan curve | Agresif | 70 °C üstünde %70+ |
+| Undervolt | **0.900-0.950 V @ ~1900-1950 MHz** | Silikona göre değişir; Afterburner curve editor daha kolay |
+| Test | 3DMark Time Spy stress / OCCT / CS2 30 dk | Artifact = başarısız |
+
+> CS2 1080p'de çoğu zaman GPU-bound değil. Overclock yerine **undervolt + stabil clock** daha çok işe yarar: daha az ısı, daha tutarlı boost, daha iyi 1% low.
+
+---
+
+## 13. Bu sisteme özel notlar
+
+### i9-9900K
+
+- 8C/16T; P/E çekirdek yok. “Prefer performance cores” gibi ayarlar sende yok.
+- 5.0 GHz fixed CS2 için rahat; AVX ağırlıklı testlerde (Prime95 AVX) ayrı stabilite gerekir.
+- Ring 4.7 GHz iyi başlangıç; ring'i düşürmek 1% low'u bozabilir.
+- HT on/off: CS2'de sonuçlar çelişkili; D2 benchmark ile A/B test et. Körlemesine kapatma.
+
+### Z390
+
+- PCIe 3.0 x16; RTX 3070 için CS2'de darboğaz değil.
+- Resmî ReBAR yok; Inspector'dan zorlama.
+- Above 4G Decoding açık olsun (3070 için faydalı), ReBAR kapalı.
+
+### RTX 3070
+
+- 8 GB VRAM; 1080p CS2'de sorun yok.
+- 1080p'de CPU-bound olma ihtimali yüksek; GPU OC'den çok CPU/RAM/ring stabilitesi önemli.
+- Undervolt, termal throttle'ı azaltarak boost tutarlılığını artırır.
+
+### 64 GB 4000 CL18
+
+- 4 DIMM / dual-rank ise IMC yükü yüksek; 4000 her silikonda stabil olmayabilir.
+- Fallback: 3733 CL17 → 3600 CL16 → 3600 CL18.
+- `tRFC` ve `tREFI` latency'ye en çok dokunan ayarlar; ama stabiliteyi bozmadan.
+- RAM sıcaklığı 50 °C üstüne çıkıyorsa airflow artır.
+
+### Windows 10 22H2
+
+- Destek dışı; tüketici ESU penceresi Ekim 2026'da kapandı.
+- Performans için sorun değil; güvenlik için Windows 11 veya kurumsal ESU değerlendir.
+- Win11'e geçiş 9900K'da resmî destekli mi kontrol et (TPM 2.0/PTT + Secure Boot).
+
+---
+
+## 14. Mevcut scriptlerin kapsamı
+
+### `CS2-Windows10-Optimize.ps1`
+
+**Uyguladıkları:**
+- High Performance plan, PCIe ASPM off, USB selective suspend off.
+- GameDVR/AppCapture/GameBar policy off; Game Mode on.
+- Opsiyonel HAGS on/off.
+- Opsiyonel Defender exclusions (CS2 klasörü + `cs2.exe`).
+- NIC: EEE/Green/Wake/Power Saving/Selective Suspend off; RSS on.
+- Opsiyonel NIC latency modu: Interrupt Moderation + Flow Control off.
+- TCP autotuning normal, RSS enabled; Nagle/NetworkThrottling'e dokunmuyor.
+- Opsiyonel Fast Startup off.
+- Opsiyonel FSO off (cs2.exe).
+- Windows GPU preference = High performance (cs2.exe).
+- Opsiyonel timer BCD temizliği (`useplatformclock`, `disabledynamictick`, `tscsyncpolicy`, `useplatformtick`).
+- Registry backup, restore point, transcript, `-Revert`.
+
+**Kapsamadıkları (bu raporun konusu):**
+- `Win32PrioritySeparation`, `SystemResponsiveness`, `PowerThrottlingOff`.
+- BIOS/CPU/RAM/ring.
+- NVIDIA Control Panel / Profile Inspector.
+- MSI mode / interrupt affinity.
+- Timer resolution ayarlama (sadece temizleme var).
+- SysMain/Search/startup temizliği.
+- Ağ router/QoS.
+
+**Kullanım:**
+
+```powershell
+# Dry run (değişiklik yapmaz)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1
+
+# Uygula
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1 -Apply -AddDefenderExclusions -RestoreTimerDefaults
+
+# HAGS A/B
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1 -Apply -EnableHags
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1 -Apply -DisableHags
+
+# Geri al
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1 -Revert
+```
+
+> `-RestoreTimerDefaults` sadece daha önce HPET/timer tweak'i yaptıysan anlamlı. Temiz kurulumda gereksiz.
+
+### `CS2-Desktop-OneClick.ps1`
+
+- Aynı baseline'ın daha basit varyantı.
+- `-SkipDefender`, `-SkipNic`, `-DisableFastStartup`, `-DisableFSO`, `-KeepTimerTweaks`, `-Force` parametreleri var.
+- Ana script varken ikinci kez çalıştırmaya gerek yok; ikisi de backup/restore point oluşturur.
+
+---
+
+## 15. Uygulama planı ve kontrol listesi
+
+### Faz 0 — Hazırlık
+
+- [ ] BIOS profili kaydet.
+- [ ] Windows restore point oluştur.
+- [ ] CapFrameX + LatencyMon + HWiNFO kur.
+- [ ] 3 run baseline al.
+- [ ] Monitör Hz/çözünürlük ve G-Sync durumunu yaz.
+
+### Faz 1 — BIOS/RAM
+
+- [ ] XMP 4000 CL18 açık; TM5/Karhu test.
+- [ ] Hata varsa 3733 CL17 / 3600 CL16 dene.
+- [ ] Ring 4.7, C-states off, ASPM off, Above 4G on, ReBAR off.
+- [ ] WHEA kontrolü.
+
+### Faz 2 — Windows güç/scheduler
+
+- [ ] High Performance (veya Ultimate).
+- [ ] PCIe ASPM off, USB suspend off, disk idle 0.
+- [ ] Core parking kapalı (zaten kapalıysa dokunma).
+- [ ] `Win32PrioritySeparation=38` (no-op olabilir).
+- [ ] `SystemResponsiveness=10`.
+- [ ] `PowerThrottlingOff=1`.
+- [ ] `DisablePagingExecutive=1`.
+
+### Faz 3 — GameDVR/FSO/görsel
+
+- [ ] Script ile GameDVR/GameBar kapat.
+- [ ] Game Mode açık; 1% low test.
+- [ ] FSO'yu cs2.exe için kapat (A/B).
+- [ ] Görsel efektler = best performance.
+- [ ] Mouse accel off.
+
+### Faz 4 — NVIDIA
+
+- [ ] DDU ile temiz Game Ready sürücü.
+- [ ] CS2 profili: Prefer max performance, Low Latency (Reflex'e göre), V-Sync off, shader cache unlimited.
+- [ ] Texture filtering high performance; FXAA/AO/DSR off.
+- [ ] Profile Inspector ince ayarları; `.nip` export.
+- [ ] 3070 undervolt/OC; stress test.
+
+### Faz 5 — Arka plan/ağ
+
+- [ ] Defender exclusions (CS2 klasörü).
+- [ ] Startup apps temizle.
+- [ ] SysMain/Search'i ölçerek değerlendir.
+- [ ] NIC power saving off; Interrupt Moderation/Flow Control A/B.
+- [ ] Router SQM/QoS.
+
+### Faz 6 — İleri seviye (ölçümle)
+
+- [ ] HAGS on/off A/B.
+- [ ] MSI mode kontrol; gerekiyorsa aç.
+- [ ] Interrupt affinity (sadece LatencyMon sorunu varsa).
+- [ ] Timer resolution (sadece ölçülebilir kazanç varsa).
+- [ ] HT on/off A/B.
+
+---
+
+## 16. Yapma listesi
+
+- ❌ `NetworkThrottlingIndex` kapatma.
+- ❌ `useplatformclock` / HPET zorlama.
+- ❌ Defender / Windows Update / Spectre-Meltdown mitigasyonlarını kapatma.
+- ❌ Pagefile kapatma.
+- ❌ Memory compression kapatma.
+- ❌ Z390'da ReBAR zorlama.
+- ❌ MSI mode + High priority'yi ölçmeden üst üste uygulama.
+- ❌ 0.5 ms timer aracını sürekli arka planda çalıştırıp ölçüm yapmama.
+- ❌ “Optimized” üçüncü taraf NVIDIA Inspector build'leri.
+- ❌ Aynı anda 20 tweak.
+- ❌ `Win32PrioritySeparation=38`'den büyük FPS artışı beklemek (default ile aynı).
+- ❌ SysMain/Search'ü körlemesine kapatmak.
+- ❌ Tüm Xbox/telemetry servislerini topluca disable etmek.
+
+---
+
+## 17. Geri alma ve yedekleme
+
+| Katman | Yedek | Geri alma |
+|---|---|---|
+| Registry | Script `CS2-Optimize-Backup-*` klasörüne `.reg` export eder | `.reg` import veya `-Revert` |
+| Power plan | Aktif scheme GUID kaydedilir | `powercfg /setactive <GUID>` |
+| NIC | `nic-backup.json` | `Set-NetAdapterAdvancedProperty` |
+| Defender | `defender-backup.json` | Exclusion'ları kaldır |
+| BCD | `bcd-backup` | `bcdedit /import` |
+| BIOS | OC profile slotu | BIOS'tan geri yükle |
+| NVIDIA | `.nip` export | Profile Inspector import |
+| Sistem | Restore point | System Restore |
+
+> `-Revert` sadece scriptin yaptığı değişiklikleri geri alır; NVIDIA/BIOS/registry'de elle yaptıklarını kapsamaz.
+
+---
+
+## 18. Açık sorular / sonraki adımlar
+
+1. Monitör çözünürlüğü ve Hz? (240/360 Hz mi?)
+2. G-Sync var mı? CS2'de Reflex açık mı?
+3. RAM 4×16 mı, 2×32 mi? Dual-rank mi?
+4. 4000 CL18 stabil mi? TM5/Karhu sonucu?
+5. HT on/off denendi mi?
+6. HAGS açık/kapalı hangi değerde şu an?
+7. Wi-Fi mi Ethernet mi? Router modeli?
+8. Windows 11'e geçiş düşünülüyor mu?
+
+### Karar günlüğü
+
+| Tarih | Değişiklik | Öncesi | Sonrası | Karar | Not |
+|---|---|---|---|---|---|
+| | | | | | |
+| | | | | | |
+| | | | | | |
+
+---
+
+## Ek A — Win11Debloat inceleme özeti (önceki konu)
+
+- Resmî repo: `github.com/Raphire/Win11Debloat` (MIT, ~62k yıldız).
+- Kaynak taramasında obfuscation, `IEX`/base64, kalıcılık, Defender/firewall/UAC/hosts/DNS tampering bulunmadı.
+- Son release `2026.10.30` ZIP SHA-256 `6830bf501d2740c3317133ac0ecdc2a3ab80ed7f6c83e7f0f20dc66afbf758a7`; `SHA256SUMS` ile eşleşiyor.
+- `Get.ps1` indirdiği ZIP'in hash'ini doğruluyor.
+- Riskler: admin-level değişiklikler, varsayılan `AllUsers` app removal, Force Remove Edge'in yıkıcı olması, opsiyonel güvenlik ayarlarının düşürülmesi.
+- README'deki `& ([scriptblock]::Create((irm "https://debloat.raphi.re/")))` yöntemi uzaktan kod çalıştırır; tercih edilmemeli.
+- Sonuç: malware/backdoor yok; “sıfır risk” denemez. Scripti gözden geçirerek ve tek tek seçerek kullan.
+
+---
+
+## Ek B — Doğrulama notları / kaynaklar
+
+- `Win32PrioritySeparation` decode: short+variable+3:1 = 0x26; Win10 client default 0x02 ile aynı mod.
+- `NetworkThrottlingIndex`: kapatmanın NDIS.sys DPC latency'sini artırdığına dair xperf ölçümleri.
+- NVIDIA Profile Inspector: `github.com/Orbmu2k/nvidiaProfileInspector`.
+- NVIDIA Inspector: `orbmu2k.de/tools/nvidia-inspector-tool`.
+- CapFrameX: `capframex.com`.
+- LatencyMon: `resplendence.com/latencymon`.
+- HWiNFO64: `hwinfo.com`.
+- Win11Debloat: `github.com/Raphire/Win11Debloat`.
+
+---
+
+> **Not:** Bu dosya bir çalışma raporudur. Uyguladıkça “Durum” ve “Karar günlüğü” bölümlerini güncelle. Ölçümsüz hiçbir tweak'i “kalıcı” işaretleme.
