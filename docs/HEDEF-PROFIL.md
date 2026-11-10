@@ -86,6 +86,7 @@ yansır. Core OC'den sonra **ilk** denenmesi gereken ayar budur.
 | Game Bar paneli | Off | aynı |
 | **Game Mode** | **On** | aynı |
 | PowerThrottlingOff | **1** | `-DisablePowerThrottling` |
+| **CS2 kalıcı işlem önceliği** (IFEO `PerfOptions`) | **AboveNormal (6)** veya hiç ayarlama | `High` (3) ses crackle/stutter riski; `Realtime` (4) asla. Steam `-high` launch option yapma |
 | SystemResponsiveness | **10** | `-SetSystemResponsiveness` |
 | DisablePagingExecutive | 1 | `-DisablePagingExecutive` |
 | MMCSS Games profili | GPU Priority 8 / Priority 6 / High | `-SetMmcssGameProfile` |

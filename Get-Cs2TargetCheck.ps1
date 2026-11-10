@@ -272,6 +272,21 @@ if ($gpuPref -and "$gpuPref" -match 'GpuPreference=2') {
     Add-Check -Layer 'GPU' -Item 'Windows GPU preference' -Target 'High performance' -Actual $(if ($gpuPref) { "$gpuPref" } else { 'yok' }) -Status 'FAIL' -Action 'CS2-Windows10-Optimize.ps1 -Apply'
 }
 
+# IFEO kalici oncelik
+$cpuPrio = Get-RegValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\cs2.exe\PerfOptions' -Name 'CpuPriorityClass'
+if ($null -eq $cpuPrio) {
+    Add-Check -Layer 'Windows' -Item 'CS2 kalici oncelik (IFEO)' -Target 'yok (varsayilan)' -Actual 'yok' -Status 'INFO' -Action 'Gerekirse -SetCs2Priority AboveNormal ile kalici oncelik ver'
+} else {
+    $prioName = switch ([int]$cpuPrio) { 2 { 'Normal' } 3 { 'High' } 6 { 'AboveNormal' } 4 { 'REALTIME (riskli!)' } default { "deger=$cpuPrio" } }
+    if ([int]$cpuPrio -eq 4) {
+        Add-Check -Layer 'Windows' -Item 'CS2 kalici oncelik (IFEO)' -Target 'Normal/AboveNormal' -Actual $prioName -Status 'FAIL' -Action 'REALTIME sistemi kilitleyebilir; derhal Normal yap'
+    } elseif ([int]$cpuPrio -eq 3) {
+        Add-Check -Layer 'Windows' -Item 'CS2 kalici oncelik (IFEO)' -Target 'Normal/AboveNormal' -Actual $prioName -Status 'WARN' -Action 'High ses crackle/stutter riski; AboveNormal ile karsilastir'
+    } else {
+        Add-Check -Layer 'Windows' -Item 'CS2 kalici oncelik (IFEO)' -Target 'Normal/AboveNormal' -Actual $prioName -Status 'OK'
+    }
+}
+
 Add-Check -Layer 'GPU' -Item 'NVCP Power management' -Target 'Prefer maximum performance' -Actual 'manuel kontrol' -Status 'INFO' -Action 'cs2.exe profili: Power management mode = Prefer max performance'
 Add-Check -Layer 'GPU' -Item 'NVCP Low Latency Mode' -Target 'Off (Reflex acikken)' -Actual 'manuel kontrol' -Status 'INFO' -Action 'Reflex On iken Off; Reflex kapaliysa Ultra'
 Add-Check -Layer 'GPU' -Item 'NVCP Vertical Sync' -Target 'Off' -Actual 'manuel kontrol' -Status 'INFO' -Action 'G-Sync + Reflex kombinasyonunda V-Sync On (driver) kullanilir'

@@ -118,6 +118,13 @@
 .PARAMETER DisableFlowControl
   NIC Flow Control off. Optional and risky: it can INCREASE packet loss when
   the link is saturated. Leave enabled unless a measurement proves otherwise.
+
+.PARAMETER SetCs2Priority
+  cs2.exe'ye kalici islem onceligi verir (IFEO PerfOptions CpuPriorityClass).
+  Degerler: Normal (2), AboveNormal (6), High (3).
+  NOT: 'High' bazi sistemlerde ses crackle ve stutter yapabilir; once AboveNormal
+  ile olc. Steam launch option -high KULLANMA (CS2'de stutter/audio crackle
+  yaptigi biliniyor). Degisiklikten sonra CS2'yi yeniden baslatmak gerekir.
 .EXAMPLE
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1
 
@@ -156,7 +163,9 @@ param(
     [switch]$DisableMouseAcceleration,
     [switch]$SetBestPerformance,
     [switch]$DisableInterruptModeration,
-    [switch]$DisableFlowControl
+    [switch]$DisableFlowControl,
+    [ValidateSet('Normal', 'AboveNormal', 'High')]
+    [string]$SetCs2Priority
 )
 
 $ErrorActionPreference = 'Continue'
@@ -344,7 +353,8 @@ $keys = @(
     'HKCU\Control Panel\Desktop',
     'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects',
     'HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize',
-    'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize'
+    'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize',
+    'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\cs2.exe\PerfOptions'
 )
 foreach ($k in $keys) { Backup-RegKey -Key $k -BackupDir $script:BackupDir | Out-Null }
 
@@ -534,9 +544,26 @@ if ($DisableMpo -or $DisableStorageSense -or $DisableBackgroundApps -or $EnableS
         }
     }
 }
-# ---------------------------------------------------------------------------
-# Per-exe settings (optional)
-# ---------------------------------------------------------------------------
+if ($SetCs2Priority) {
+    Write-Step "CS2 kalici oncelik: $SetCs2Priority"
+    $ifeoPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\cs2.exe\PerfOptions'
+    $priorityMap = @{ 'Normal' = 2; 'AboveNormal' = 6; 'High' = 3 }
+    $priorityValue = $priorityMap[$SetCs2Priority]
+
+    Set-RegDword $ifeoPath 'CpuPriorityClass' $priorityValue
+    Write-Ok "IFEO PerfOptions CpuPriorityClass = $priorityValue ($SetCs2Priority)"
+    Write-Info 'Ayarlar her yeni cs2.exe surecinde otomatik uygulanir.'
+    Write-Info 'Degisiklikten sonra CS2 yeniden baslatilmalidir.'
+    if ($SetCs2Priority -eq 'High') {
+        Write-Warn 'High, sistem ses/DPC thread''lerini starve edip audio crackle ve stutter yapabilir.'
+        Write-Info 'Once AboveNormal ile olc; High''a ancak olcumle fark yaratirsa gec.'
+    }
+    if ($SetCs2Priority -eq 'Normal') {
+        Write-Info 'Normal = Windows varsayilani; essentially bir etkisi yok.'
+    }
+}
+
+
 if ($cs2Exe) {
     if ($DisableFullscreenOptimizations) {
         Write-Step 'Fullscreen Optimizations (cs2.exe)'

@@ -3,6 +3,33 @@
 Tüm önemli değişiklikler bu dosyada belgelenir.
 Format: [Semantic Versioning](https://semver.org/lang/tr/).
 
+## [v1.9.0] — 2026-11-10
+
+### Eklenen
+- `-SetCs2Priority` parametresi: `cs2.exe`'ye **kalıcı işlem önceliği** verir.
+  - Mekanizma: `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File
+    Execution Options\cs2.exe\PerfOptions` → `CpuPriorityClass` (DWORD)
+  - Değerler: `Normal` (2), `AboveNormal` (6), `High` (3)
+  - Ayar her yeni `cs2.exe` sürecinde otomatik uygulanır (Task Manager'daki
+    elle "High priority" kalıcı değildir)
+  - `Realtime` (4) bilinçli olarak **sunulmuyor** (sistemi kilitleyebilir)
+  - Yeni registry anahtarı backup/revert kapsamına alındı
+- `Get-Cs2TargetCheck.ps1`: IFEO `CpuPriorityClass` kontrolü eklendi
+  (Realtime → FAIL, High → WARN, AboveNormal/Normal → OK)
+
+### Belgelenen
+- `RAPOR.md` bölüm 4.6: CS2'ye kalıcı öncelik verme — mekanizma, değerler,
+  riskler ve ölçüm protokolü.
+- Yapma listesine eklendi: Steam `-high` launch option, `CpuPriorityClass=4`,
+  kalıcı `CpuPriorityClass=3`.
+- `docs/HEDEF-PROFIL.md` hedef tablosu güncellendi.
+
+### Risk notu
+`High` (3) öncelik, sistemin ses (DPC) ve input thread'lerini starve ederek
+**audio crackle ve stutter** üretebilir — kaldırılmak istenen şeyin tam tersi.
+Steam launch option `-high` da aynı sorunu yapar. Kalıcı öncelik isteniyorsa
+**IFEO** kullanılmalı ve önce `AboveNormal` ile ölçülmelidir.
+
 ## [v1.8.0] — 2026-11-10
 
 ### Düzeltilen (önemli)

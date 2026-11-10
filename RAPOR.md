@@ -1,6 +1,6 @@
 # CS2 / Windows 10 / NVIDIA Optimizasyon Raporu
 
-> **Sürüm:** v1.8.0 — 10 Kasım 2026  
+> **Sürüm:** v1.9.0 — 10 Kasım 2026  
 > **Durum:** Çalışma dosyası. Uygulananlar, planlananlar ve ölçüm sonuçları bu dosyada takip edilecek.  
 > **Kapsam:** Windows 10 işletim sistemi, NVIDIA sürücü/Inspector katmanı, BIOS/firmware ve ölçüm metodolojisi.  
 > **Kapsam dışı:** CS2 oyun içi video/Crosshair/autoexec ayarları.
@@ -228,6 +228,67 @@ powercfg /setactive SCHEME_CURRENT
 - Tüm servisleri disable etme → ❌
 
 ---
+
+### 4.6 CS2'ye kalıcı işlem önceliği vermek
+
+> **Evet, verilebilir.** Windows'ta bunun **resmî/desteklenen** yolu:
+> `Image File Execution Options` → `PerfOptions` → `CpuPriorityClass`.
+> Ayar **her `cs2.exe` başlangıcında otomatik** uygulanır; Task Manager'da
+> elle "High priority" yapmak ise kalıcı değildir (oturum kapanınca biter).
+
+**Yol:**
+```
+HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\cs2.exe\PerfOptions
+```
+(Anahtar adı **uzantısız**: `cs2.exe`, `cs2` değil.)
+
+| Değer | Karşılık | Not |
+|---|---|---|
+| `1` | Idle | — |
+| `2` | **Normal** | Windows varsayılanı |
+| `3` | **High** | ⚠️ Riskli — aşağıya bakınız |
+| `4` | **Realtime** | ❌ **Asla** — sistemi kilitleyebilir |
+| `5` | Below Normal | — |
+| `6` | **Above Normal** | ✅ Önerilen deneme değeri |
+
+**Proje kullanımı:**
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1 -Apply -SetCs2Priority AboveNormal
+```
+
+**Neden `High` (3) riskli?**
+
+CS2 zaten kendi thread önceliklerini MMCSS üzerinden yönetir. Ek bir
+"High" ayarı, oyunun CPU'yu tamamen bastırmasına yol açar; sistem ses (DPC) ve
+input thread'leri aç kaldığında **audio crackle ve stutter** oluşur — yani
+kaldırmaya çalıştığımız şeyin tam tersi.
+
+**Steam launch option `-high` → YAPMA**
+
+`-high` Steam'in eklediği bir parametredir ve CS2'de olumsuz raporlanıyor:
+*"why it can cause **stutter and audio crackle**, and a cleaner way to run
+`cs2.exe` with high priority: registry"*. Kalıcı öncelik istiyorsan **IFEO
+kullan** — launch option değil.
+
+**Ölçüm sırası:**
+1. Önce hiçbir şey değiştirmeden baseline al.
+2. `-SetCs2Priority AboveNormal` uygula, CS2'yi **yeniden başlat**, 3 run ölç.
+3. 1% low / p99 / mouse latency karşılaştır.
+4. Fark yoksa `-Revert` ile geri al.
+5. `High`'a yalnızca `AboveNormal` fark yaratmadıysa ve gerçekten ölçümle
+   fark varsa geç.
+
+**Yapma:**
+- ❌ `CpuPriorityClass = 4` (Realtime) — sistem kilitlenebilir.
+- ❌ Steam launch option `-high` — stutter/audio crackle.
+- ❌ `CpuPriorityClass = 3` (High) kalıcı — ses/DPC starve riski.
+
+> `PerfOptions` anahtarı Windows'ta varsayılan olarak **yoktur** ve nadiren
+> üretim ortamlarında görülür. Yönetici hakkı gerekir. `IoPriority` ve
+> `PagePriority` alt değerleri de aynı anahtarda bulunur ama IFEO yoluyla
+> `IoPriority` yalnızca "Normal" ve altı için kullanılabilir; **oyun için
+> anlamlı değildir.** Öncelik değiştirmek yetmez — `cs2.exe` yeniden
+> başlatılmalıdır.
 
 ## 5. Windows 10 — GPU, IRQ ve timer
 
@@ -804,6 +865,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Network-Tuni
 - ❌ MMCSS `Scheduling Category=High` — Pro Audio bandına sokar, sistem thread'lerini starve edip stutter üretir.
 - ❌ `SmoothMouseXCurve`/`SmoothMouseYCurve` silmek veya `00` yapmak — `MouseSpeed=0` iken gereksiz.
 - ❌ `MouseSensitivity` 10 dışında bir değer — count'ları ölçekler.
+- ❌ Steam launch option `-high` — CS2'de stutter ve audio crackle yapıyor.
+- ❌ `IFEO PerfOptions CpuPriorityClass = 4` (Realtime) — sistemi kilitleyebilir.
+- ❌ `IFEO PerfOptions CpuPriorityClass = 3` (High) kalıcı — ses/DPC starve riski.
 
 ### 16.1 İnternette önerilen ama projede reddedilen tweak'ler
 
