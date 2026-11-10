@@ -3,6 +3,45 @@
 Tüm önemli değişiklikler bu dosyada belgelenir.
 Format: [Semantic Versioning](https://semver.org/lang/tr/).
 
+## [v1.12.0] — 2026-11-10
+
+### Düzeltilen (tam proje denetimi sonucu)
+- **powercfg revert sıralaması hatası (kritik).** `-Revert` önce aktif güç planını
+  geri yüklüyor, sonra alt ayarları `SCHEME_CURRENT` üzerine yazıyordu → alt
+  ayarlar **yanlış plana** yazılıyordu. Sıra düzeltildi: alt ayarlar önce,
+  plan sonra.
+- **ASPM ve USB selective suspend yedeklenmiyordu.** Her çalıştırmada değiştiriliyor
+  ama `powercfg-backup.json`'a alınmıyordu → `-Revert` bunları geri alamıyordu.
+  Artık `Backup-PowerCfgValue` ile yedekleniyor.
+- **`CS2-Desktop-OneClick.ps1` geri alma desteği yoktu.** Kullanıcı yalnızca elle
+  `.reg` import etmek zorundaydı. Artık `-Revert` var (registry + powercfg + NIC +
+  Defender).
+- **Modül importu script'i çökertiyordu.** `Import-Module -ErrorAction Stop`
+  kullanılıyordu; `.psm1` dosyası olmadan script çalışmıyordu. Artık `try/catch`
+  ile graceful fallback var (minimum yardımcılar inline tanımlanır).
+- **Ölü parametreler:** `Get-Cs2TargetCheck.ps1 -Cs2Path` hiç kullanılmıyordu →
+  artık CS2 kurulum yolunu raporluyor. `CS2-Win10-UsbIdleDisable.ps1 -UsbHubOnly`
+  uygulanmıyordu → artık gerçekten sadece hub'ları hedefliyor.
+
+### Eklenen
+- `tests/Regression.Tests.ps1`: 49 regresyon testi. Bulunan hataların tekrarını
+  otomatik olarak engeller:
+  - powercfg revert sırası (alt ayarlar plandan önce geri yüklenmeli)
+  - ASPM/USB yedekleme mevcut olmalı
+  - OneClick'ta `-Revert` ve tüm geri yükleme yolları
+  - MMCSS `Scheduling Category` **High** asla kullanılmamalı (stutter riski)
+  - Flow Control yalnızca explicit bayrakla kapatılmalı
+  - RSC yalnızca explicit bayrakla kapatılmalı
+  - Ölü parametre bulunmamalı
+  - Her script modülü import etmeli **ve** graceful fallback içermeli
+
+### Denetim
+Tüm proje baştan sona statik denetlendi:
+- Dry-run (Apply'siz) bloklarında sistem değiştiren komut: **0**
+- Revert kapsamı: her script yedeklediği her şeyi geri alabiliyor
+- Backup klasörü seçimi: tümünde "en yeni" (Descending) doğru
+- Ölü parametre: 0 (2 tanesi bulundu, düzeltildi)
+
 ## [v1.11.0] — 2026-11-10
 
 ### Eklenen

@@ -65,7 +65,21 @@ $script:Stamp   = Get-Date -Format 'yyyyMMdd-HHmmss'
 $script:Desktop = [Environment]::GetFolderPath('Desktop')
 $script:StateFile = Join-Path $script:Desktop "CS2-UsbIdle-State-$script:Stamp.json"
 
-Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+try {
+    Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+} catch {
+    Write-Warning "CS2Optimizer.psm1 yuklenemedi: $($_.Exception.Message)"
+}
+
+# Modul bulunamazsa (tek dosya indirildiyse) minimum yardimcilar tanimlanir.
+if (-not (Get-Command -Name 'Write-Info' -ErrorAction SilentlyContinue)) {
+    Write-Warning 'CS2Optimizer.psm1 bulunamadi; minimal yardimcilar kullanilacak. Tam islev icin .psm1 dosyasini script ile ayni klasore koyun.'
+    function Write-Step { param([string]$Message) Write-Host "`n=== $Message ===" -ForegroundColor Cyan }
+    function Write-Info { param([string]$Message) Write-Host "[i] $Message" -ForegroundColor Gray }
+    function Write-Ok   { param([string]$Message) Write-Host "[+] $Message" -ForegroundColor Green }
+    function Write-Warn { param([string]$Message) Write-Host "[!] $Message" -ForegroundColor Yellow }
+    function Write-Err  { param([string]$Message) Write-Host "[-] $Message" -ForegroundColor Red }
+}
 
 # Cihaz idle/suspend ile ilgili tum degerler
 $idleValues = @(
@@ -78,6 +92,7 @@ $idleValues = @(
 )
 
 function Get-UsbDeviceKeys {
+    param([bool]$HubOnly = $false)
     $result = New-Object System.Collections.Generic.List[string]
     try {
         $hubs = @(Get-CimInstance Win32_USBHub -ErrorAction SilentlyContinue)
@@ -87,6 +102,12 @@ function Get-UsbDeviceKeys {
             # DeviceID: USB\ROOT_HUB30\... veya USB\VID_...&PID_...\&...
             $enumKey = 'HKLM:\SYSTEM\CurrentControlSet\Enum\' + $id
             if (-not (Test-Path $enumKey)) { continue }
+
+            if ($HubOnly) {
+                # Sadece hub'in kendisi (fare/klavye bu hub'a bagli)
+                $result.Add($enumKey)
+                continue
+            }
 
             # Altinda VID_...&PID_... cihazlar olabilir
             $children = @(Get-ChildItem -Path $enumKey -ErrorAction SilentlyContinue)
@@ -147,7 +168,7 @@ if ($Revert) {
 # ---------------------------------------------------------------------------
 # Kuru calisma / uygulama
 # ---------------------------------------------------------------------------
-$keys = Get-UsbDeviceKeys
+$keys = Get-UsbDeviceKeys -HubOnly ([bool]$UsbHubOnly)
 if ($keys.Count -eq 0) {
     Write-Warn 'USB cihaz bulunamadi (WMIC/CIM erisimi yok olabilir).'
     exit 1

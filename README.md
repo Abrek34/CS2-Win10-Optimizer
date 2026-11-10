@@ -13,7 +13,7 @@ Windows 10 + NVIDIA tarafında, **CS2 için oyun dışı** optimizasyonları bel
 | Dosya | Açıklama |
 |---|---|
 | `CS2-Windows10-Optimize.ps1` | Ana script. Dry-run, yedek, restore point, `-Revert`. |
-| `CS2-Desktop-OneClick.ps1` | Aynı baseline'ın daha basit tek tık varyantı. |
+| `CS2-Desktop-OneClick.ps1` | Aynı baseline'ın daha basit tek tık varyantı. `-Revert` destekler. |
 | `CS2-Optimize-Baslat.cmd` | PowerShell başlatıcı. |
 | `Get-Cs2SystemReport.ps1` | Sistemi envanterler ve Masaüstü'ne Markdown + JSON raporu yazar. Okunur (read-only); hiçbir ayarı değiştirmez. |
 | `CS2-Win10-WinUtil-Preferences.ps1` | WinUtil incelemesinden seçilen düşük riskli tercihleri uygular: activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click. Dry-run varsayılan; backup/revert destekler. |
@@ -176,6 +176,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ## Sürüm
 
+- **v1.12.0** — Tam proje denetimi: powercfg revert sırası, ASPM/USB yedekleme, OneClick `-Revert`, modül graceful fallback düzeltildi; 49 regresyon testi eklendi.
 - **v1.11.0** — USB cihaz seviyesinde idle/suspend kapatma scripti eklendi; KatzRead paketi incelemesi (1 alındı, ~18 reddedildi) belgelendi.
 - **v1.10.0** — "0 ve 1 tick kaldırma" (CPU affinity) efsanesi çürütüldü; 9900K'da uygulanmamalı.
 - **v1.9.0** — `cs2.exe` için kalıcı işlem önceliği (IFEO `PerfOptions`), `-SetCs2Priority` bayrağı eklendi.
@@ -196,8 +197,11 @@ Ayrıntı: [`CHANGELOG.md`](CHANGELOG.md)
 ## Geliştirme
 
 ```powershell
-# Testler
+# Testler (31 birim + 49 regresyon)
 Invoke-Pester ./tests
+
+# Regresyon testleri tek tek
+Invoke-Pester ./tests/Regression.Tests.ps1
 
 # Sözdizimi denetimi
 Get-ChildItem *.ps1 | ForEach-Object {

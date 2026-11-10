@@ -18,6 +18,7 @@
     -DisableFSO        (per-exe fullscreen optimizations off; A/B test)
     -KeepTimerTweaks   (do not remove HPET/timer bcdedit values)
     -Force             (skip confirmation)
+    -Revert            (restore the latest backup and exit)
 
   A restore point and a Desktop backup folder are created.
   Test with CapFrameX before/after; keep only changes that help.
@@ -33,7 +34,8 @@ param(
     [switch]$DisableFastStartup,
     [switch]$DisableFSO,
     [switch]$KeepTimerTweaks,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$Revert
 )
 
 $ErrorActionPreference = 'Continue'
@@ -42,9 +44,83 @@ $desktop = [Environment]::GetFolderPath('Desktop')
 $backup  = Join-Path $desktop "CS2-Optimize-Backup-$stamp"
 $log     = Join-Path $desktop "CS2-Optimize-$stamp.log"
 
-Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+try {
+    Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+} catch {
+    Write-Warning "CS2Optimizer.psm1 yuklenemedi: $($_.Exception.Message)"
+}
+
+# Modul bulunamazsa (tek dosya indirildiyse) minimum yardimcilar tanimlanir.
+if (-not (Get-Command -Name 'Write-Info' -ErrorAction SilentlyContinue)) {
+    Write-Warning 'CS2Optimizer.psm1 bulunamadi; minimal yardimcilar kullanilacak. Tam islev icin .psm1 dosyasini script ile ayni klasore koyun.'
+    function Write-Step { param([string]$Message) Write-Host "`n=== $Message ===" -ForegroundColor Cyan }
+    function Write-Info { param([string]$Message) Write-Host "[i] $Message" -ForegroundColor Gray }
+    function Write-Ok   { param([string]$Message) Write-Host "[+] $Message" -ForegroundColor Green }
+    function Write-Warn { param([string]$Message) Write-Host "[!] $Message" -ForegroundColor Yellow }
+    function Write-Err  { param([string]$Message) Write-Host "[-] $Message" -ForegroundColor Red }
+}
 
 Start-Transcript -Path $log -Force | Out-Null
+
+# ---------------------------------------------------------------------------
+# Revert
+# ---------------------------------------------------------------------------
+if ($Revert) {
+    Say 'Reverting: latest CS2-Optimize backup...'
+    $latest = Get-LatestBackup -Pattern 'CS2-Optimize-Backup-*'
+    if (-not $latest) {
+        Bad 'No CS2-Optimize backup folder found on Desktop.'
+        Stop-Transcript | Out-Null
+        exit 1
+    }
+    Say "Using backup: $($latest.FullName)"
+
+    $n = Restore-RegBackups -BackupDir $latest.FullName
+    Good "Restored $n registry key(s)."
+
+    $pcfg = Join-Path $latest.FullName 'powercfg-backup.json'
+    if (Test-Path $pcfg) {
+        $entries = Get-Content $pcfg -Raw | ConvertFrom-Json
+        foreach ($e in @($entries)) {
+            $parts = @($e.Alias -split '\s+' | Where-Object { $_ })
+            & powercfg.exe /setacvalueindex SCHEME_CURRENT @parts $e.Value 2>$null | Out-Null
+            Good "Power setting restored: $($e.Alias) = $($e.Value)"
+        }
+        & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
+    }
+
+    $schemeFile = Join-Path $latest.FullName 'power-scheme.txt'
+    if (Test-Path $schemeFile) {
+        $oldScheme = (Get-Content $schemeFile -Raw).Trim()
+        if ($oldScheme) {
+            & powercfg.exe /setactive $oldScheme 2>$null | Out-Null
+            Good "Power scheme restored: $oldScheme"
+        }
+    }
+
+    $nicFile = Join-Path $latest.FullName 'nic-backup.json'
+    if (Test-Path $nicFile) {
+        $items = Get-Content $nicFile -Raw | ConvertFrom-Json
+        foreach ($it in @($items)) {
+            Set-NetAdapterAdvancedProperty -Name $it.Name -DisplayName $it.DisplayName -DisplayValue $it.DisplayValue -ErrorAction SilentlyContinue
+        }
+        Good 'NIC advanced properties restored.'
+    }
+
+    $defFile = Join-Path $latest.FullName 'defender-backup.json'
+    if (Test-Path $defFile) {
+        $d = Get-Content $defFile -Raw | ConvertFrom-Json
+        if ($d.Cs2Path) { Remove-MpPreference -ExclusionPath $d.Cs2Path -ErrorAction SilentlyContinue }
+        Remove-MpPreference -ExclusionProcess 'cs2.exe' -ErrorAction SilentlyContinue
+        foreach ($p in @($d.OriginalPaths)) { if ($p) { Add-MpPreference -ExclusionPath $p -ErrorAction SilentlyContinue } }
+        foreach ($p in @($d.OriginalProcesses)) { if ($p) { Add-MpPreference -ExclusionProcess $p -ErrorAction SilentlyContinue } }
+        Good 'Defender exclusions restored.'
+    }
+
+    Good 'Revert complete. Reboot recommended.'
+    Stop-Transcript | Out-Null
+    exit 0
+}
 
 # Cikti yardimcilari ortak modulden gelir.
 function Say  { param($m) Write-Info $m }
@@ -146,10 +222,17 @@ Good "Registry backup: $backup"
 
 # Power plan
 Say 'Setting High Performance, PCIe ASPM off, USB selective suspend off...'
+# Onceki degerleri yedekle ki -Revert bunlari da geri alabilsin
+Backup-PowerCfgValue -Alias 'SUB_PCIEXPRESS ASPM'
+Backup-PowerCfgValue -Alias '2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226'
+$currentScheme = (& powercfg.exe /getactivescheme) -join ' '
+$schemeGuid = ([regex]::Match($currentScheme, '([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})')).Value
+if ($schemeGuid) { Set-Content -Path (Join-Path $backup 'power-scheme.txt') -Value $schemeGuid }
 & powercfg.exe /setactive SCHEME_MIN 2>$null | Out-Null
 & powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_PCIEXPRESS ASPM 0 2>$null | Out-Null
 & powercfg.exe /setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0 2>$null | Out-Null
 & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
+Save-PowerCfgBackup -BackupDir $backup
 Good 'Power settings applied.'
 
 # GameDVR / GameBar / Game Mode

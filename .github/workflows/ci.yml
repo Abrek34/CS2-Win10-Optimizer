@@ -80,7 +80,6 @@ jobs:
       - name: Modul kullanim dogrulamasi
         shell: pwsh
         run: ./tests/Verify-ModuleUsage.ps1
-
   diagnose:
     name: CI teşhisi (başlatma hatası)
     runs-on: ubuntu-latest

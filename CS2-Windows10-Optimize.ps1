@@ -174,7 +174,21 @@ $script:Desktop     = [Environment]::GetFolderPath('Desktop')
 $script:LogPath     = Join-Path $script:Desktop "CS2-Optimize-$script:Stamp.log"
 $script:BackupDir   = Join-Path $script:Desktop "CS2-Optimize-Backup-$script:Stamp"
 
-Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+try {
+    Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+} catch {
+    Write-Warning "CS2Optimizer.psm1 yuklenemedi: $($_.Exception.Message)"
+}
+
+# Modul bulunamazsa (tek dosya indirildiyse) minimum yardimcilar tanimlanir.
+if (-not (Get-Command -Name 'Write-Info' -ErrorAction SilentlyContinue)) {
+    Write-Warning 'CS2Optimizer.psm1 bulunamadi; minimal yardimcilar kullanilacak. Tam islev icin .psm1 dosyasini script ile ayni klasore koyun.'
+    function Write-Step { param([string]$Message) Write-Host "`n=== $Message ===" -ForegroundColor Cyan }
+    function Write-Info { param([string]$Message) Write-Host "[i] $Message" -ForegroundColor Gray }
+    function Write-Ok   { param([string]$Message) Write-Host "[+] $Message" -ForegroundColor Green }
+    function Write-Warn { param([string]$Message) Write-Host "[!] $Message" -ForegroundColor Yellow }
+    function Write-Err  { param([string]$Message) Write-Host "[-] $Message" -ForegroundColor Red }
+}
 
 Start-Transcript -Path $script:LogPath -Force | Out-Null
 
@@ -229,15 +243,8 @@ if ($Revert) {
     $restored = Restore-RegBackups -BackupDir $backup.FullName
     Write-Ok "Restored $restored registry key(s)."
 
-    $powerFile = Join-Path $backup.FullName 'power-scheme.txt'
-    if (Test-Path $powerFile) {
-        $oldScheme = (Get-Content $powerFile -Raw).Trim()
-        if ($oldScheme) {
-            & powercfg.exe /setactive $oldScheme 2>$null | Out-Null
-            Write-Ok "Power scheme restored: $oldScheme"
-        }
-    }
-
+    # ONCE alt powercfg ayarlari geri yuklenir (aktif plan henuz eski plan DEGIL),
+    # SONRA aktif plan degistirilir. Aksi halde alt ayarlar yanlis plana yazilir.
     $pcfgFile = Join-Path $backup.FullName 'powercfg-backup.json'
     if (Test-Path $pcfgFile) {
         $pcfg = Get-Content $pcfgFile -Raw | ConvertFrom-Json
@@ -247,6 +254,15 @@ if ($Revert) {
             Write-Ok "Power setting restored: $($entry.Alias) = $($entry.Value)"
         }
         & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
+    }
+
+    $powerFile = Join-Path $backup.FullName 'power-scheme.txt'
+    if (Test-Path $powerFile) {
+        $oldScheme = (Get-Content $powerFile -Raw).Trim()
+        if ($oldScheme) {
+            & powercfg.exe /setactive $oldScheme 2>$null | Out-Null
+            Write-Ok "Power scheme restored: $oldScheme"
+        }
     }
 
     $nicFile = Join-Path $backup.FullName 'nic-backup.json'
@@ -369,11 +385,16 @@ if ($schemeGuid) {
 # Power
 # ---------------------------------------------------------------------------
 Write-Step 'Power plan: High Performance + low-latency PCIe/USB'
+# ASPM ve USB selective suspend her calistirmada DEGISTIRILIR; onceki degerleri
+# yedeklenir ki -Revert bunlari da geri alabilsin.
+Backup-PowerCfgValue -Alias 'SUB_PCIEXPRESS ASPM'
+Backup-PowerCfgValue -Alias '2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226'
 & powercfg.exe /setactive SCHEME_MIN 2>$null | Out-Null
 & powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_PCIEXPRESS ASPM 0 2>$null | Out-Null
 & powercfg.exe /setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0 2>$null | Out-Null
 & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
 Write-Ok 'High Performance, PCIe ASPM off, USB selective suspend off.'
+Write-Info 'Onceki ASPM/USB degerleri powercfg-backup.json icinde saklandi (revert edilebilir).'
 
 # ---------------------------------------------------------------------------
 # Processor performance / latency (optional)

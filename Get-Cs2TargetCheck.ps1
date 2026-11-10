@@ -22,11 +22,11 @@
 .PARAMETER OutputDirectory
   Raporun yazilacagi klasor. Varsayilan: Masaustu.
 
-.PARAMETER Cs2Path
-  CS2 kurulum yolu. Verilmezse otomatik aranir.
-
 .PARAMETER TargetFps
   Hedef FPS (360 Hz monitorda 357). Cap degerlendirmesinde kullanilir.
+
+.PARAMETER Cs2Path
+  CS2 kurulum yolu. Verilmezse otomatik aranir. Yalnizca raporda gosterilir.
 
 .PARAMETER Json
   Sadece JSON yaz.
@@ -50,7 +50,21 @@ $ErrorActionPreference = 'Continue'
 $script:Stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $script:Desktop = [Environment]::GetFolderPath('Desktop')
 
-Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+try {
+    Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+} catch {
+    Write-Warning "CS2Optimizer.psm1 yuklenemedi: $($_.Exception.Message)"
+}
+
+# Modul bulunamazsa (tek dosya indirildiyse) minimum yardimcilar tanimlanir.
+if (-not (Get-Command -Name 'Write-Info' -ErrorAction SilentlyContinue)) {
+    Write-Warning 'CS2Optimizer.psm1 bulunamadi; minimal yardimcilar kullanilacak. Tam islev icin .psm1 dosyasini script ile ayni klasore koyun.'
+    function Write-Step { param([string]$Message) Write-Host "`n=== $Message ===" -ForegroundColor Cyan }
+    function Write-Info { param([string]$Message) Write-Host "[i] $Message" -ForegroundColor Gray }
+    function Write-Ok   { param([string]$Message) Write-Host "[+] $Message" -ForegroundColor Green }
+    function Write-Warn { param([string]$Message) Write-Host "[!] $Message" -ForegroundColor Yellow }
+    function Write-Err  { param([string]$Message) Write-Host "[-] $Message" -ForegroundColor Red }
+}
 
 if (-not $OutputDirectory) { $OutputDirectory = $script:Desktop }
 if (-not (Test-Path $OutputDirectory)) { New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null }
@@ -94,6 +108,27 @@ function Get-ActiveSchemeName {
     if ($m.Success) { return $m.Groups[1].Value }
     return $line.Trim()
 }
+
+# ---------------------------------------------------------------------------
+# CS2 kurulum yolu (rapor icin)
+# ---------------------------------------------------------------------------
+$cs2Path = $null
+try {
+    $steam = (Get-ItemProperty 'HKCU:\Software\Valve\Steam' -ErrorAction SilentlyContinue).SteamPath
+    $candidates = @()
+    if ($Cs2Path) { $candidates += $Cs2Path }
+    if (${env:ProgramFiles(x86)}) { $candidates += (Join-Path ${env:ProgramFiles(x86)} 'Steam\steamapps\common\Counter-Strike Global Offensive') }
+    if ($env:ProgramFiles) { $candidates += (Join-Path $env:ProgramFiles 'Steam\steamapps\common\Counter-Strike Global Offensive') }
+    if ($steam) { $candidates += (Join-Path $steam 'steamapps\common\Counter-Strike Global Offensive') }
+    foreach ($c in $candidates) {
+        if ($c -and (Test-Path (Join-Path $c 'game\bin\win64\cs2.exe'))) {
+            $cs2Path = $c
+            break
+        }
+    }
+} catch { }
+
+Add-Check -Layer 'Windows' -Item 'CS2 kurulum yolu' -Target 'bulunmali' -Actual $(if ($cs2Path) { $cs2Path } else { 'BULUNAMADI' }) -Status $(if ($cs2Path) { 'OK' } else { 'WARN' }) -Action 'Steam kutuphanesinde CS2 kurulu degilse olcum yapilamaz'
 
 # ---------------------------------------------------------------------------
 # Katman 1: Windows / scheduler

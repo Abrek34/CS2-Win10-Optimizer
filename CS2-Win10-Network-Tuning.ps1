@@ -69,7 +69,21 @@ $script:Desktop   = [Environment]::GetFolderPath('Desktop')
 $script:LogPath   = Join-Path $script:Desktop "CS2-NetworkTuning-$script:Stamp.log"
 $script:BackupDir = Join-Path $script:Desktop "CS2-NetworkTuning-Backup-$script:Stamp"
 
-Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+try {
+    Import-Module (Join-Path $PSScriptRoot 'CS2Optimizer.psm1') -Force -ErrorAction Stop
+} catch {
+    Write-Warning "CS2Optimizer.psm1 yuklenemedi: $($_.Exception.Message)"
+}
+
+# Modul bulunamazsa (tek dosya indirildiyse) minimum yardimcilar tanimlanir.
+if (-not (Get-Command -Name 'Write-Info' -ErrorAction SilentlyContinue)) {
+    Write-Warning 'CS2Optimizer.psm1 bulunamadi; minimal yardimcilar kullanilacak. Tam islev icin .psm1 dosyasini script ile ayni klasore koyun.'
+    function Write-Step { param([string]$Message) Write-Host "`n=== $Message ===" -ForegroundColor Cyan }
+    function Write-Info { param([string]$Message) Write-Host "[i] $Message" -ForegroundColor Gray }
+    function Write-Ok   { param([string]$Message) Write-Host "[+] $Message" -ForegroundColor Green }
+    function Write-Warn { param([string]$Message) Write-Host "[!] $Message" -ForegroundColor Yellow }
+    function Write-Err  { param([string]$Message) Write-Host "[-] $Message" -ForegroundColor Red }
+}
 
 Start-Transcript -Path $script:LogPath -Force | Out-Null
 
