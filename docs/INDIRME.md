@@ -1,20 +1,36 @@
-# Release indirme — private repo kuralları
+# Release indirme
 
-> ⚠️ Bu depo **private**. Bu yüzden release asset'larına
-> `releases/download/...` URL'si ile **giriş yapmadan** erişilemez ve
-> **404** döner. Bu bir hata değil, GitHub'ın private repo davranışı.
+> ✅ Bu depo artık **public**. Release asset'larına
+> `releases/download/...` URL'si ile **giriş yapmadan** doğrudan erişilebilir.
+>
+> *(Bu depo private iken aynı URL'ler 404 döndürüyordu; GitHub'ın private repo
+> davranışıydı. Public'e geçişle sorun çözüldü.)*
+
+## Hızlı indirme (tarayıcıdan, giriş gerekmez)
+
+```
+https://github.com/Abrek34/CS2-Win10-Optimizer/releases/download/v1.12.1/CS2-Win10-Optimizer-v1.12.1.zip
+```
+
+> Bu URL artık **HTTP 200** döndürüyor ve SHA256 değeri
+> `6c3f9cab8af6a57c5b36f998f21bafdfba13522d558ba724e36fa564653f8d94`
+> ile birebir eşleşiyor (doğrulandı).
+
+## Yine de 404 alırsanız
+
+Eski private dönemden kalma bir bağlantı olabilir. Repo public olduğu için
+tarayıcıdan **doğrudan** indirme çalışır. Yine de sorun yaşarsanız
+aşağıdaki yöntemlerden birini kullanın.
 
 ---
 
-## Hızlı kontrol
+## Yöntem 0 — Tarayıcıdan doğrudan (en kolay)
 
-Tarayıcıdan şu URL'yi açtığınızda **404** görürseniz panik yapmayın:
+Public repo olduğu için giriş gerekmez:
 
 ```
-https://github.com/Abrek34/CS2-Win10-Optimizer/releases/download/v1.12.0/CS2-Win10-Optimizer-v1.12.0.zip
+https://github.com/Abrek34/CS2-Win10-Optimizer/releases/download/v1.12.1/CS2-Win10-Optimizer-v1.12.1.zip
 ```
-
-Bu normaldir. Aşağıdaki yöntemlerden birini kullanın.
 
 ---
 
@@ -70,9 +86,9 @@ sha256sum -c SHA256SUMS
 Get-FileHash .\CS2-Win10-Optimizer-v1.12.0.zip -Algorithm SHA256
 ```
 
-Beklenen (v1.12.0):
+Beklenen (v1.12.1):
 ```
-8d628c9bdfa2da225101463f9275d38dbbf1b3d01834da4488472fca2ac939a8
+6c3f9cab8af6a57c5b36f998f21bafdfba13522d558ba724e36fa564653f8d94
 ```
 
 ---
@@ -112,15 +128,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ---
 
-## Doğrulanan test kaydı (v1.12.0)
+## Doğrulanan test kaydı (v1.12.1 — public, anonim indirme)
 
 | Kontrol | Sonuç |
 |---|---|
-| GitHub API'de repo içeriği | ✅ 25 dosya + klasörler |
-| Release asset sayısı | ✅ 2 (ZIP + SHA256SUMS) |
-| `gh api` ile indirme | ✅ 131 KB, ZIP bütünlüğü doğru |
-| ZIP içeriği ↔ repo | ✅ 25/25 dosya byte-byte aynı |
+| **Anonim tarayıcı indirmesi** | ✅ **HTTP 200**, 136.520 bayt |
+| SHA256SUMS | ✅ `6c3f9cab…` birebir eşleşiyor |
+| ZIP bütünlüğü (`unzip -t`) | ✅ hata yok |
+| ZIP içeriği | ✅ 26 dosya, `CS2Optimizer.psm1` + `docs/INDIRME.md` dahil |
 | Modül import (temiz indirme) | ✅ 37 fonksiyon |
-| `Get-Cs2TargetCheck.ps1` çalıştırma | ✅ Markdown + JSON üretildi |
-| `Get-Cs2AimMatrix.ps1` çalıştırma | ✅ Doğru DPI matrisi |
-| SHA256SUMS | ✅ `8d628c9b…` eşleşiyor |
+| `Get-Cs2TargetCheck.ps1` | ✅ Markdown + JSON üretti |
+| `Get-Cs2AimMatrix.ps1` | ✅ Doğru DPI matrisi |
+| İndirilen pakette testler | ✅ **80/80 Pester geçti** |

@@ -1,6 +1,6 @@
 # CS2 / Windows 10 / NVIDIA Optimizasyon Raporu
 
-> **Sürüm:** v1.12.1 — 10 Kasım 2026  
+> **Sürüm:** v1.13.0 — 10 Kasım 2026  
 > **Durum:** Çalışma dosyası. Uygulananlar, planlananlar ve ölçüm sonuçları bu dosyada takip edilecek.  
 > **Kapsam:** Windows 10 işletim sistemi, NVIDIA sürücü/Inspector katmanı, BIOS/firmware ve ölçüm metodolojisi.  
 > **Kapsam dışı:** CS2 oyun içi video/Crosshair/autoexec ayarları.

@@ -1,7 +1,7 @@
 # Sistem Özellikleri ve Ayar Eşleşmesi
 
 > **Proje:** CS2-Win10-Optimizer  
-> **Sürüm:** v1.12.1 — 10 Kasım 2026  
+> **Sürüm:** v1.13.0 — 10 Kasım 2026  
 > **Amaç:** Bu depodaki Windows/NVIDIA/BIOS ayarlarının hangi donanım ve sistem varsayımlarına göre seçildiğini belgelemek.
 
 Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını; **i9-9900K + Z390 + RTX 3070 + 64 GB DDR4** kombinasyonuna göre daraltıldığını gösterir. Farklı bir donanımda aynı değerler aynı sonucu vermeyebilir.

@@ -2,6 +2,12 @@
 
 ## Mevcut durum
 
+> **2026-11-10 güncellemesi:** Repo **public** yapıldı. Public olmak release
+> indirmesini düzeltti (asset'lar artık anonim HTTP 200 dönüyor) **ama CI
+> kilidini kaldırmadı** — kilit **hesap seviyesinde**. Public repo'lar için
+> Actions dakikaları ücretsiz olsa da hesap kilidi her şeyi bloklar.
+> Aşağıdaki teşhis hâlâ geçerlidir.
+
 Bu depodaki CI iş akışı **GitHub tarafından başlatılamıyor**. Run durumu `startup_failure`
 olarak kaydediliyor ve hiçbir job çalışmıyor.
 

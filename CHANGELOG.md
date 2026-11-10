@@ -3,6 +3,28 @@
 Tüm önemli değişiklikler bu dosyada belgelenir.
 Format: [Semantic Versioning](https://semver.org/lang/tr/).
 
+## [v1.13.0] — 2026-11-10
+
+### Değişen
+- **Repo artık PUBLIC.** `releases/download/...` URL'leri giriş yapmadan
+  **HTTP 200** döndürüyor (private iken 404 döndürüyordu — GitHub davranışı).
+- Güvenlik kontrolü yapıldı: commit yazarı GitHub noreply adresi; gizli anahtar,
+  token, kişisel e-posta/telefon **yok**.
+- `docs/INDIRME.md` ve README güncellendi: doğrudan tarayıcı indirmesi birincil
+  yol olarak gösterildi.
+
+### Doğrulama (anonim indirme)
+- Tarayıcı indirmesi: HTTP 200, 136.520 bayt
+- SHA256SUMS: `6c3f9cab…` birebir eşleşiyor
+- ZIP bütünlüğü, modül import (37 fonksiyon), TargetCheck, AimMatrix: OK
+- İndirilen pakette **80/80 Pester testi** geçti
+
+### Bilinen engel (repo dışı)
+GitHub **hesap kilidi** devam ediyor:
+`The job was not started because your account is locked due to a billing issue.`
+Bu hesap seviyesinde bir sorundur, repo visibility ile ilgisi yoktur.
+CI çalışması için: https://github.com/settings/billing
+
 ## [v1.12.1] — 2026-11-10
 
 ### Eklenen

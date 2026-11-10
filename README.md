@@ -71,12 +71,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ## Hızlı başlangıç
 
-> ⚠️ **Bu depo private.** Release ZIP'ini tarayıcıdan `releases/download/...`
-> URL'siyle indirmeye çalışırsanız **404** alırsınız — GitHub'ın private repo
-> davranışı, hata değil. Doğru indirme yolları: [`docs/INDIRME.md`](docs/INDIRME.md)
+> ✅ **Bu depo public.** Release ZIP'ini tarayıcıdan doğrudan indirebilirsiniz
+> (giriş gerekmez):
+>
+> ```
+> https://github.com/Abrek34/CS2-Win10-Optimizer/releases/download/v1.12.1/CS2-Win10-Optimizer-v1.12.1.zip
+> ```
+>
+> Alternatif yollar ve SHA256 doğrulama: [`docs/INDIRME.md`](docs/INDIRME.md)
 
 ```bash
-# En kolay yol (gh kurulu ve giriş yapılmış olmalı)
+# Komut satirindan (gh kurulu ve giris yapilmis olmali)
 gh release download --repo Abrek34/CS2-Win10-Optimizer --pattern '*.zip' --dir .
 gh release download --repo Abrek34/CS2-Win10-Optimizer --pattern 'SHA256SUMS' --dir .
 sha256sum -c SHA256SUMS
@@ -189,6 +194,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ## Sürüm
 
+- **v1.13.0** — Repo **public** oldu; release asset'ları artık giriş yapmadan tarayıcıdan doğrudan indirilebiliyor (doğrulandı).
 - **v1.12.1** — Private repo release indirme rehberi eklendi (`docs/INDIRME.md`); asset'lar girişsiz 404 veriyor, 4 alternatif yol belgelendi.
 - **v1.12.0** — Tam proje denetimi: powercfg revert sırası, ASPM/USB yedekleme, OneClick `-Revert`, modül graceful fallback düzeltildi; 49 regresyon testi eklendi.
 - **v1.11.0** — USB cihaz seviyesinde idle/suspend kapatma scripti eklendi; KatzRead paketi incelemesi (1 alındı, ~18 reddedildi) belgelendi.
