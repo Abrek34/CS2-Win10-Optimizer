@@ -22,7 +22,7 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 | **Depolama** | **240 GB SATA SSD** | Disk idle, SysMain/Search değerlendirmesi |
 | **OS** | Windows 10 22H2 (build 19045) | GameDVR/FSO/HAGS/power plan; destek dışı |
 | **Monitör** | **360 Hz** (çözünürlük bilinmiyor; genellikle 1080p, doğrula) | fps cap = 357 önerilebilir, G-Sync/Reflex kararları |
-| **Ağ** | **Ethernet (kablolu), router: ASUS RT-AX82U** | NIC advanced properties, SQM/QoS |
+| **Ağ** | **Ethernet (kablolu), Intel I219-V Gigabit LAN, router: ASUS RT-AX82U** | NIC advanced properties, Adaptive QoE Gaming Mode, %95 bandwidth limiter, SQM yok |
 | **PSU** | **Doldurulacak:** model/watt | 5.0 GHz + RTX 3070 transient yükleri |
 | **Kasa/hava akışı** | **Doldurulacak** | RAM/VRM/GPU sıcaklıkları |
 
@@ -95,11 +95,15 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 
 | Ayar | Neden bu sistemde anlamlı? | Sınır / not |
 |---|---|---|
-| fps cap = refresh−3 (G-Sync varsa) | 3070'in CS2'de ürettiği yüksek fps'te frametime tutarlılığı | Monitör Hz'i bilinmiyor |
+| fps cap = refresh−3 (G-Sync varsa) | 3070'in CS2'de ürettiği yüksek fps'te frametime tutarlılığı | 360 Hz onaylandı → **357**; G-Sync desteği doğrulanmalı |
 | G-Sync Fullscreen only | VRR + Reflex + V-Sync kombinasyonu | Monitör desteği bilinmiyor |
 | Reflex açık/kapalı | CS2 + NVIDIA driver etkileşimi | Oyun içi ayar; bu proje dokunmuyor |
-| NIC power saving off | Ethernet'te jitter'ı azaltır | Wi-Fi ise farklı ayarlar |
-| Router SQM/QoS | Bufferbloat'ı azaltır | Router modeli bilinmiyor |
+| NIC power saving off (Intel I219-V) | Ethernet'te jitter'ı azaltır | EEE / Green Ethernet / Selective Suspend / WoL kapalı |
+| **Rx Flow Control → Enabled** | Paket kaybını önler | **Kapatmak packet loss'u artırır — dokunma** |
+| Interrupt Moderation | Latency vs CPU/DPC dengesi | Yalnızca LatencyMon ölçümüyle; I219-V'de "Off" seçeneği olmayabilir |
+| RSS | 8C/16T'da alıcı işlemeyi dağıtır | Enabled bırak |
+| Router Adaptive QoE (Gaming Mode) | RT-AX82U'da oyun trafiği önceliği | SQM yok; %95 bandwidth limiter ile bufferbloat azaltılır |
+| Router SQM/fq_codel | En iyi latency çözümü | RT-AX82U stock firmware desteklemiyor |
 
 ---
 

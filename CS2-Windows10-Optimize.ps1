@@ -44,7 +44,8 @@
   This is a security tradeoff; only the CS2 folder is excluded.
 
 .PARAMETER TuneNicLatency
-  Also disable NIC Interrupt Moderation and Flow Control. Test A/B; can increase CPU/DPC.
+  Also disable NIC Interrupt Moderation. Test A/B; lowers latency but raises CPU/DPC load.
+  Flow Control is intentionally left ENABLED (disabling it can increase packet loss).
 
 .PARAMETER DisableFastStartup
   Set HiberbootEnabled = 0. Not an FPS tweak; can improve driver stability.
@@ -74,6 +75,45 @@
 
 .PARAMETER DisableSystemVrr
   Disable system-wide VRR optimization. Optional; A/B test.
+
+.PARAMETER SetProcessorPerformance
+  Processor performance mode: minimum/maximum state %100, core parking off,
+  EPP 0 (Speed Shift), aggressive boost. Optional; raises idle power/heat.
+
+.PARAMETER DisableIdleStates
+  Disable OS-level idle suspend (IDLEDISABLE=1). Use only if BIOS C-states are
+  NOT already disabled; do not combine both.
+
+.PARAMETER DisableDiskIdle
+  Disk idle timeout 0. Optional; affects the 240 GB SATA SSD power state.
+
+.PARAMETER SetMmcssGameProfile
+  MMCSS Games profile: GPU Priority 8, Priority 6, Scheduling Category High,
+  SFIO Priority High. Optional; harmless but usually a no-op for CS2.
+
+.PARAMETER DisablePowerThrottling
+  PowerThrottlingOff = 1. Optional; stops EcoQoS throttling of game threads.
+
+.PARAMETER SetSystemResponsiveness
+  SystemResponsiveness = 10. Optional; do not set 0.
+
+.PARAMETER DisablePagingExecutive
+  DisablePagingExecutive = 1. Optional; keeps the kernel resident in RAM.
+
+.PARAMETER DisableMouseAcceleration
+  Disable Windows mouse acceleration (MouseSpeed/MouseThreshold = 0).
+  Optional; CS2 raw input bypasses it, but it keeps other apps consistent.
+
+.PARAMETER SetBestPerformance
+  Visual effects = best performance, transparency off, menu/startup delays 0.
+  Optional; mostly cosmetic.
+
+.PARAMETER DisableInterruptModeration
+  NIC Interrupt Moderation off. Optional; lowers latency but raises DPC/CPU load.
+
+.PARAMETER DisableFlowControl
+  NIC Flow Control off. Optional and risky: it can INCREASE packet loss when
+  the link is saturated. Leave enabled unless a measurement proves otherwise.
 .EXAMPLE
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize.ps1
 
@@ -101,7 +141,18 @@ param(
     [switch]$DisableStorageSense,
     [switch]$DisableBackgroundApps,
     [switch]$EnableSystemVrr,
-    [switch]$DisableSystemVrr
+    [switch]$DisableSystemVrr,
+    [switch]$SetProcessorPerformance,
+    [switch]$DisableIdleStates,
+    [switch]$DisableDiskIdle,
+    [switch]$SetMmcssGameProfile,
+    [switch]$DisablePowerThrottling,
+    [switch]$SetSystemResponsiveness,
+    [switch]$DisablePagingExecutive,
+    [switch]$DisableMouseAcceleration,
+    [switch]$SetBestPerformance,
+    [switch]$DisableInterruptModeration,
+    [switch]$DisableFlowControl
 )
 
 $ErrorActionPreference = 'Continue'
@@ -135,6 +186,45 @@ function Backup-RegKey {
     $safe = ($Key -replace '[:\\]', '_')
     $file = Join-Path $script:BackupDir "$safe.reg"
     & reg.exe export $Key $file /y 2>$null | Out-Null
+}
+
+function Get-PowerCfgValue {
+    param([string]$Alias)
+    # powercfg çok kelimeli alias'ı (örn. "SUB_PROCESSOR PROCTHROTTLEMIN")
+    # TEK argüman olarak kabul etmez; parçalarına ayırıp geçiyoruz.
+    $parts = @($Alias -split '\s+' | Where-Object { $_ })
+    if ($parts.Count -eq 0) { return $null }
+    $out = & powercfg.exe /query SCHEME_CURRENT @parts 2>$null
+    if (-not $out) { return $null }
+    $text = ($out -join "`n")
+    $m = [regex]::Match($text, 'Current AC Power Setting Index:\s*(0x[0-9a-fA-F]+)')
+    if ($m.Success) { return [Convert]::ToInt32($m.Groups[1].Value, 16) }
+    return $null
+}
+
+function Backup-PowerCfgValue {
+    param([string]$Alias)
+    $v = Get-PowerCfgValue -Alias $Alias
+    if ($null -eq $v) {
+        Write-Warn "Could not read current value for $Alias; it will not be restored individually."
+        return
+    }
+    $script:PowerCfgBackup.Add([ordered]@{ Alias = $Alias; Value = $v })
+    Write-Info "Saved $Alias = $v"
+}
+
+function Save-PowerCfgBackup {
+    if ($script:PowerCfgBackup.Count -eq 0) { return }
+    $script:PowerCfgBackup | ConvertTo-Json -Depth 4 |
+        Set-Content -Path (Join-Path $script:BackupDir 'powercfg-backup.json') -Encoding UTF8
+    Write-Ok "Power setting values saved: powercfg-backup.json"
+}
+
+function Set-PowerCfgValue {
+    param([string]$Alias, [int]$Value)
+    $parts = @($Alias -split '\s+' | Where-Object { $_ })
+    & powercfg.exe /setacvalueindex SCHEME_CURRENT @parts $Value 2>$null | Out-Null
+    Write-Ok "$Alias = $Value"
 }
 
 function Find-Cs2Path {
@@ -205,6 +295,17 @@ if ($Revert) {
         }
     }
 
+    $pcfgFile = Join-Path $backup.FullName 'powercfg-backup.json'
+    if (Test-Path $pcfgFile) {
+        $pcfg = Get-Content $pcfgFile -Raw | ConvertFrom-Json
+        foreach ($entry in @($pcfg)) {
+            $parts = @($entry.Alias -split '\s+' | Where-Object { $_ })
+            & powercfg.exe /setacvalueindex SCHEME_CURRENT @parts $entry.Value 2>$null | Out-Null
+            Write-Ok "Power setting restored: $($entry.Alias) = $($entry.Value)"
+        }
+        & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
+    }
+
     $nicFile = Join-Path $backup.FullName 'nic-backup.json'
     if (Test-Path $nicFile) {
         $nic = Get-Content $nicFile -Raw | ConvertFrom-Json
@@ -260,6 +361,8 @@ if (-not $Apply) {
     Write-Info 'Recommended first run: -Apply -AddDefenderExclusions -RestoreTimerDefaults'
     Write-Info 'Optional A/B tests: -EnableHags OR -DisableHags, -TuneNicLatency, -DisableFullscreenOptimizations'
     Write-Info 'Optional GameBoost-derived tweaks: -DisableMpo, -DisableStorageSense, -DisableBackgroundApps, -EnableSystemVrr OR -DisableSystemVrr'
+    Write-Info 'Optional performance/latency: -SetProcessorPerformance, -DisableIdleStates, -DisableDiskIdle, -SetMmcssGameProfile, -DisablePowerThrottling, -SetSystemResponsiveness, -DisablePagingExecutive, -DisableMouseAcceleration, -SetBestPerformance'
+    Write-Info 'Optional NIC latency: -DisableInterruptModeration (Flow Control is left enabled on purpose)'
     Write-Info "Log: $script:LogPath"
     Stop-Transcript | Out-Null
     exit 0
@@ -298,7 +401,16 @@ $keys = @(
     'HKCU\Software\Microsoft\DirectX\UserGpuPreferences',
     'HKLM\SOFTWARE\Microsoft\Windows\Dwm',
     'HKCU\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy',
-    'HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications'
+    'HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications',
+    'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile',
+    'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games',
+    'HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling',
+    'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management',
+    'HKCU\Control Panel\Mouse',
+    'HKCU\Control Panel\Desktop',
+    'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects',
+    'HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize',
+    'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize'
 )
 foreach ($k in $keys) { Backup-RegKey $k }
 
@@ -318,6 +430,101 @@ Write-Step 'Power plan: High Performance + low-latency PCIe/USB'
 & powercfg.exe /setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0 2>$null | Out-Null
 & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
 Write-Ok 'High Performance, PCIe ASPM off, USB selective suspend off.'
+
+# ---------------------------------------------------------------------------
+# Processor performance / latency (optional)
+# ---------------------------------------------------------------------------
+$script:PowerCfgBackup = New-Object System.Collections.Generic.List[object]
+
+if ($SetProcessorPerformance) {
+    Write-Step 'Processor performance (min/max 100%, EPP 0, aggressive boost)'
+    Backup-PowerCfgValue 'SUB_PROCESSOR PROCTHROTTLEMIN'
+    Backup-PowerCfgValue 'SUB_PROCESSOR PROCTHROTTLEMAX'
+    Backup-PowerCfgValue 'SUB_PROCESSOR CPMINCORES'
+    Backup-PowerCfgValue 'SUB_PROCESSOR CPMAXCORES'
+    Backup-PowerCfgValue 'SUB_PROCESSOR PERFEPP'
+    Backup-PowerCfgValue 'SUB_PROCESSOR PERFBOOSTMODE'
+
+    Set-PowerCfgValue 'SUB_PROCESSOR PROCTHROTTLEMIN' 100
+    Set-PowerCfgValue 'SUB_PROCESSOR PROCTHROTTLEMAX' 100
+    Set-PowerCfgValue 'SUB_PROCESSOR CPMINCORES' 100
+    Set-PowerCfgValue 'SUB_PROCESSOR CPMAXCORES' 100
+    Set-PowerCfgValue 'SUB_PROCESSOR PERFEPP' 0
+    Set-PowerCfgValue 'SUB_PROCESSOR PERFBOOSTMODE' 2
+    Write-Warn 'Idle power draw and temperature rise. Verify cooling with HWiNFO.'
+}
+
+if ($DisableIdleStates) {
+    Write-Step 'OS idle suspend (IDLEDISABLE)'
+    if (-not $DisableFastStartup) {
+        Write-Warn 'Use only if BIOS C-states are NOT already disabled; do not combine both.'
+    }
+    Backup-PowerCfgValue 'SUB_PROCESSOR IDLEDISABLE'
+    Set-PowerCfgValue 'SUB_PROCESSOR IDLEDISABLE' 1
+}
+
+if ($DisableDiskIdle) {
+    Write-Step 'Disk idle timeout'
+    Backup-PowerCfgValue 'SUB_DISK DISKIDLE'
+    Set-PowerCfgValue 'SUB_DISK DISKIDLE' 0
+    Write-Ok 'Disk idle timeout = 0 (never sleeps).'
+}
+
+& powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
+Save-PowerCfgBackup
+
+# ---------------------------------------------------------------------------
+# Scheduler / MMCSS / power throttling (optional)
+# ---------------------------------------------------------------------------
+if ($SetMmcssGameProfile) {
+    Write-Step 'MMCSS Games profile'
+    $gamesKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games'
+    Set-RegDword $gamesKey 'GPU Priority' 8
+    Set-RegDword $gamesKey 'Priority' 6
+    Set-RegString $gamesKey 'Scheduling Category' 'High'
+    Set-RegString $gamesKey 'SFIO Priority' 'High'
+    Write-Ok 'Games profile: GPU Priority 8, Priority 6, Scheduling Category High.'
+    Write-Info 'Usually a no-op for CS2; measure before keeping.'
+}
+
+if ($DisablePowerThrottling) {
+    Write-Step 'Power throttling'
+    Set-RegDword 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling' 'PowerThrottlingOff' 1
+    Write-Ok 'PowerThrottlingOff = 1.'
+}
+
+if ($SetSystemResponsiveness) {
+    Write-Step 'System responsiveness'
+    Set-RegDword 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile' 'SystemResponsiveness' 10
+    Write-Ok 'SystemResponsiveness = 10.'
+}
+
+if ($DisablePagingExecutive) {
+    Write-Step 'Disable paging executive'
+    Set-RegDword 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' 'DisablePagingExecutive' 1
+    Write-Ok 'DisablePagingExecutive = 1.'
+}
+
+# ---------------------------------------------------------------------------
+# Input / visual (optional)
+# ---------------------------------------------------------------------------
+if ($DisableMouseAcceleration) {
+    Write-Step 'Mouse acceleration'
+    $mouseKey = 'HKCU:\Control Panel\Mouse'
+    Set-RegString $mouseKey 'MouseSpeed' '0'
+    Set-RegString $mouseKey 'MouseThreshold1' '0'
+    Set-RegString $mouseKey 'MouseThreshold2' '0'
+    Write-Ok 'Mouse acceleration disabled. CS2 raw input bypasses this anyway.'
+}
+
+if ($SetBestPerformance) {
+    Write-Step 'Visual effects = best performance'
+    Set-RegDword 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' 'VisualFXSetting' 2
+    Set-RegDword 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' 'EnableTransparency' 0
+    Set-RegString 'HKCU:\Control Panel\Desktop' 'MenuShowDelay' '0'
+    Set-RegDword 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize' 'StartupDelayInMSec' 0
+    Write-Ok 'Best performance visuals, transparency off, delays 0.'
+}
 
 # ---------------------------------------------------------------------------
 # Game DVR / Game Bar / Game Mode
@@ -466,18 +673,35 @@ if (-not $SkipNic) {
             }
         }
 
-        if ($TuneNicLatency) {
-            Write-Warn 'NIC latency test mode: Interrupt Moderation / Flow Control disabled. A/B test.'
-            foreach ($name in @('Interrupt Moderation', 'Flow Control')) {
-                $p = $props | Where-Object { $_.DisplayName -eq $name } | Select-Object -First 1
-                if ($p) {
-                    try {
-                        Set-NetAdapterAdvancedProperty -Name $adapter.Name -DisplayName $p.DisplayName -DisplayValue 'Disabled' -ErrorAction Stop
-                        Write-Ok "$name = Disabled"
-                    } catch {
-                        Write-Warn "$name could not be changed: $($_.Exception.Message)"
-                    }
+        if ($TuneNicLatency -or $DisableInterruptModeration) {
+            Write-Warn 'NIC latency test mode: Interrupt Moderation disabled. A/B test.'
+            Write-Info 'Latency drops but CPU/DPC load rises. Measure with LatencyMon + CapFrameX.'
+            $im = $props | Where-Object { $_.DisplayName -eq 'Interrupt Moderation' } | Select-Object -First 1
+            if ($im) {
+                try {
+                    Set-NetAdapterAdvancedProperty -Name $adapter.Name -DisplayName $im.DisplayName -DisplayValue 'Disabled' -ErrorAction Stop
+                    Write-Ok 'Interrupt Moderation = Disabled'
+                } catch {
+                    Write-Warn "Interrupt Moderation could not be changed: $($_.Exception.Message)"
                 }
+            } else {
+                Write-Info 'Interrupt Moderation not found on this adapter.'
+            }
+        }
+
+        if ($DisableFlowControl) {
+            Write-Warn 'Flow Control disabled. This REDUCES drop protection and can INCREASE packet loss.'
+            Write-Info 'Only use if a measurement proves it helps. Prefer keeping Flow Control enabled.'
+            $fc = $props | Where-Object { $_.DisplayName -eq 'Flow Control' } | Select-Object -First 1
+            if ($fc) {
+                try {
+                    Set-NetAdapterAdvancedProperty -Name $adapter.Name -DisplayName $fc.DisplayName -DisplayValue 'Disabled' -ErrorAction Stop
+                    Write-Ok 'Flow Control = Disabled'
+                } catch {
+                    Write-Warn "Flow Control could not be changed: $($_.Exception.Message)"
+                }
+            } else {
+                Write-Info 'Flow Control not found on this adapter.'
             }
         }
 

@@ -308,22 +308,137 @@ Add-MpPreference -ExclusionProcess "cs2.exe"
 
 ---
 
-## 8. Windows 10 — ağ (kısa)
+## 8. Windows 10 — ağ (detaylı)
 
-> Detaylı NIC/router ayarları önceki mesajda verildi. Burada sadece OS tarafı özet.
+> **Hedef:** "hızlı ve akıcı internet" — ama **paket kaybı olmadan**. Bu iki hedef bazen çelişir; öncelik paket kaybını silmemektir.
+> **Donanım:** Anakart üzeri **Intel I219-V** Gigabit LAN, router **ASUS RT-AX82U**, kablolu bağlantı.
 
-| Ayar | Öneri | Not |
+### 8.1 Temel prensip: neyi kapatmamalı
+
+En yaygın hata, "her şeyi kapat" yaklaşımıdır. Aşağıdakiler **varsayılan olarak açık bırakılır**:
+
+| Ayar | Değer | Neden dokunulmaz |
 |---|---|---|
-| Ethernet | Kablolu | Wi-Fi'ye göre daha düşük jitter |
-| NIC power saving | Disabled | EEE/Green Ethernet/Wake on Magic Packet kapalı |
-| Interrupt Moderation | **A/B test** | Kapatmak DPC/CPU yükünü artırabilir; her NIC'te iyi değil |
-| Flow Control | **A/B test** | Aynı şekilde |
-| RSS | Enabled | Çok çekirdekli dağıtım |
-| `netsh int tcp set global autotuninglevel=normal` | Varsayılan | Abartılı TCP tweak yapma |
-| `NetworkThrottlingIndex` | **Dokunma** | Kapatmak DPC latency'sini artırır |
-| Nagle | **Dokunma** | CS2 UDP; etkisi yok/yanlış yönlü olabilir |
+| **Rx/Tx Flow Control** | **Enabled** | Pause frame ile buffer taşmasını önler. Kapatmak **paket kaybını artırır**. |
+| **Checksum Offload** | Enabled | Kapatmak her pakette CPU işi yapar; CPU yükü artar. |
+| **LSO / TSO** | Enabled | Büyük gönderimlerde CPU yükünü düşürür. |
+| **RSS** | Enabled | 8C/16T'da alıcı işlemeyi çekirdeklere dağıtır. |
+| **Speed & Duplex** | **Auto** | Tek tarafı sabitlemek duplex mismatch → yeniden gönderim ve düşük hız. |
+| **Jumbo Frames** | **1500** | Ev/ISP yolunda uçtan uca desteklenmez; parçalanma ve drop riski. |
+| **Buffer / RSS kuyruk derinliği** | Varsayılan | Drop görünmeden maxlamak kuyruk gecikmesi ekler. |
+| **RSC / LRO** | Enabled | TCP segment birleştirme CPU'yu rahatlatır; CS2 çoğunlukla UDP. |
 
-Router tarafı: SQM/fq_codel, bufferbloat testi, oyun trafiği için QoS. Bu, Windows tweak'lerinden daha büyük etki yapabilir.
+> Kaynak mantığı: *"A Guide to Windows NIC Advanced Settings"* (KomuraSoft, 2026) — checksum/RSS/LSO/RSC varsayılan açık kalmalı, Speed & Duplex Auto, Jumbo yalnızca uçtan uca hizalıysa.
+
+### 8.2 Kapatılması gerekenler (güç tasarrufu)
+
+| Ayar | Değer | Neden |
+|---|---|---|
+| Energy Efficient Ethernet / Green Ethernet | **Disabled** | Link idle'da güç düşürme; hız ayarı değil ama link kararlılığı/düşüş sorunu için ilk izole adımı. |
+| Power Saving Mode | Disabled | Aynı gerekçe. |
+| Selective Suspend | Disabled | Windows uykusunda link düşmesi. |
+| Ultra Low Power / Gigabit Lite | Disabled | Aynı gerekçe. |
+| Wake on Magic Packet / Wake on Pattern Match | Disabled | WoL kullanılmıyorsa; istenmeyen uyanmaları ve DPC kaynaklarını keser. |
+| **Adapter power management** | **Disabled** | `Disable-NetAdapterPowerManagement` — uyku sırasında kablo düşmesi ve gecikme. |
+
+### 8.3 Ölçümle değerlendirilecekler (opsiyonel)
+
+| Ayar | Etki | Risk |
+|---|---|---|
+| **Interrupt Moderation → Off** | Interrupt sıklığı azalır → latency düşer | **CPU ve DPC yükü artar.** Ölçmeden kalıcı yapma. |
+| **RSC / LRO → Off** | Daha ince segment granülaritesi | CS2 UDP ağırlıklı; etkisi genelde küçük. |
+| LSO / Checksum / USO → Off | Yalnızca sorun ayıklama | CPU artar, gerekçesizse zararlı. |
+| DNS cache flush | İlk çözümleme hızlanır | Ölçülebilir etkisi çok küçük; zararsız. |
+
+### 8.4 Script ile uygulama
+
+`CS2-Win10-Network-Tuning.ps1` (dry-run varsayılan, backup/revert destekli):
+
+```powershell
+# Temel uygulama
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Network-Tuning.ps1 -Apply
+
+# Interrupt Moderation A/B testi (ölç!)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Network-Tuning.ps1 -Apply -DisableInterruptModeration
+
+# Geri al
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Network-Tuning.ps1 -Revert
+```
+
+Script ayrıca: adapter bilgisi, **NIC istatistikleri (discard/error sayacı)**, `netsh int tcp show global` ve tüm advanced property listesini konsola basar — böylece "paket kaybı var mı" ölçülebilir.
+
+### 8.5 Router tarafı — ASUS RT-AX82U
+
+> Router ayarları Windows'tan daha büyük etki yapar. "Hızlı internet" ile "düşük latency" arasındaki fark genelde **bufferbloat** kaynaklıdır.
+
+**Önce ölç:** `waveform.com/bufferbloat` (veya `speedtest.net` bufferbloat testi) → A/B/C/D/F notu.
+
+| Ayar | Değer | Not |
+|---|---|---|
+| **Adaptive QoE** | **ON** | ASUS'un 2026 güncel arayüzü. Eski "Adaptive QoS" yerine geçebilir. |
+| **QoE modu** | **Gaming Mode** | Oyun paketlerine daha yüksek trafik ağırlığı; latency ve paket kaybını azaltır (ASUS dokümanı). |
+| **Bandwidth Limiter** | **PC'nin bant genişliğini ~%95'ine sabitle** | Bufferbloat için en etkili tek ayar. Tam bant genişliği = kuyruk birikmesi = latency spike. |
+| QoS türleri | **Tek seferde bir tür** | ASUS Adaptive QoS / Traditional QoS / Bandwidth Limiter aynı anda kullanılamaz. |
+| **PC bağlantısı** | **Kablolu (LAN)** | Wi-Fi jitter ve tekrar (retransmission) kaynaklıdır. |
+| **Jumbo / MTU** | **1500** | Router'ın LAN/WAN MTU'su 1500 ise NIC'de jumbo açma. |
+| SQM / fq_codel | RT-AX82U stock firmware'de yok | **Düşük latency + bufferbloat için en iyi çözüm**, ancak bu router SQM desteklemiyor. Alternatif: Merlin firmware (varsa) ya da hızlı bir PC/router'ı SQM'li bir cihazla değiştirmek. |
+
+> **Gerçekçi beklenti:** RT-AX82U'da bufferbloat "iyi" ama "mükemmel" değildir; Adaptive QoE + %95 limiter belirgin iyileşme sağlar. SQM/fq_codel seviyesindeki latency ancak router değişikliği veya Merlin firmware ile mümkün.
+
+### 8.6 Windows QoS / DSCP (opsiyonel, sınırlı)
+
+Windows 10/11'de `New-NetQosPolicy` ile uygulama bazlı DSCP işaretleme mümkündür (ör. `cs2.exe` → DSCP 46 / EF). **Ancak:**
+- Tüketici router'larının çoğu (RT-AX82U dahil) DSCP'yi uygulama bazlı QoS yerine yok sayar; işaretlemek tek başına etkisizdir.
+- Router tarafında QoS zaten çalışıyorsa gereksiz karmaşıklıktır.
+- Bu yüzden proje **uygulamaz**; sadece ileri seviye seçenek olarak not edilir.
+
+### 8.7 Reddedilenler
+
+- ❌ **Nagle / `TCPNoDelay` / `TcpDelAckTicks`** — CS2 UDP; etkisiz.
+- ❌ **`NetworkThrottlingIndex = 0xFFFFFFFF`** — DPC latency artışı.
+- ❌ **Rx Flow Control kapatma** — paket kaybını artırır (hedefimizin tam tersi).
+- ❌ **Speed & Duplex sabitleme** — duplex mismatch riski.
+- ❌ **Jumbo Frame** — uçtan uca hizalı değil, parçalanma/drop.
+- ❌ **Checksum/LSO/RSC kapatma** — CPU yükünü artırır.
+- ❌ **MTU değiştirme** — ISP yolu belirleyici; router/ISP ile eşleşmeli.
+
+---
+
+## 8A. Input lag — ölçüm zinciri
+
+> **Kural:** FPS artışı değil, **click-to-photon** ve **1% low** hedeflenir. Tek katman değiştir, ölç, karar ver.
+
+### 8A.1 Zincir (kayıp nereden oluyor?)
+
+```
+Fare → USB polling → Windows input queue → CS2 tick → oyun → NVIDIA render queue → monitör
+        (1 ms)        (1-3 ms)          (tick)    (CPU)      (Reflex kuyruğu)   (1 panel)
+```
+
+Her halka ayrı ölçülür. Kayıp genelde **render queue** veya **CPU tick** kaynaklıdır; fare/mouse ayarı değil.
+
+### 8A.2 Ölçüm araçları
+
+| Araç | Ölçtüğü | Not |
+|---|---|---|
+| **NVIDIA Reflex Analyzer** | Gerçek click-to-photon (ms) | En güvenilir referans; 360 Hz'te 2.78 ms/panel sınırı. |
+| **PresentMon** | Present latency / frame time | Reflex Analyzer yoksa en iyi ikame. |
+| **CapFrameX** | 1% / 0.1% low, p99 frametime | Akıcılığın ana metriği. |
+| **MouseTester / Mouse Rate Checker** | Polling rate doğrulama | 1000 Hz ayarının gerçekten uygulandığını doğrular. |
+| **LatencyMon** | DPC/ISR kaynakları | Interrupt Moderation A/B testinde belirleyici. |
+
+### 8A.3 Sıralı müdahale planı
+
+1. **NVIDIA Reflex**: Oyun içi `Enabled` + driver `Low Latency Mode = Off`. Stutter varsa `-noreflex` + driver `Ultra` + driver cap'i dene (A/B).
+2. **FPS cap**: G-Sync + V-Sync + Reflex → `refresh−3` (360 Hz → **357**). G-Sync yoksa: uncapped veya stabil yüksek cap. Cap'i **tek yerden** yönet.
+3. **HAGS**: Açık/kapalı A/B (proje zaten destekliyor).
+4. **Mouse**: polling **1000 Hz**, Enhance pointer precision **Off**, pointer speed **6/11**. 4000/8000 Hz CS2 CPU thread'ini yorabilir.
+5. **Overlay'ler**: Steam / Discord / NVIDIA overlay **Off** — microstutter kaynağı.
+6. **BIOS**: fixed 5.0 GHz + ring 4.7 + C-states off; termal throttle yoksa effective clock düşmez.
+7. **Interrupt Moderation**: **yalnızca** LatencyMon DPC deltası gösterirse kapat.
+8. **VBS/HVCI**: 5-10% kazanç mümkün; güvenlik trade-off'unu kabul ederek test et.
+
+> **Ölçüm sırası önemli:** 3 run baseline → bir değişiklik → 3 run → karar. CapFrameX'te ortalama FPS değil **1% low** ve **frametime p99**'a bak.
 
 ---
 
@@ -499,7 +614,9 @@ Router tarafı: SQM/fq_codel, bufferbloat testi, oyun trafiği için QoS. Bu, Wi
 - Opsiyonel timer BCD temizliği (`useplatformclock`, `disabledynamictick`, `tscsyncpolicy`, `useplatformtick`).
 - Opsiyonel GameBoost-derived tweak'ler: MPO disable, Storage Sense disable, background apps disable, system VRR toggle.
 - Opsiyonel WinUtil-derived tercihler: activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click.
-- Registry backup, restore point, transcript, `-Revert`.
+- Opsiyonel performans/latency: `-SetProcessorPerformance` (min/max %100, EPP 0, aggressive boost), `-DisableIdleStates`, `-DisableDiskIdle`, `-SetMmcssGameProfile`, `-DisablePowerThrottling`, `-SetSystemResponsiveness`, `-DisablePagingExecutive`, `-DisableMouseAcceleration`, `-SetBestPerformance`.
+- Opsiyonel NIC: `-DisableInterruptModeration` (latency için; CPU/DPC artar), `-DisableFlowControl` (paket kaybı riski nedeniyle önerilmez).
+- Registry + powercfg değerleri backup, restore point, transcript, `-Revert`.
 
 **Kapsamadıkları (bu raporun konusu):**
 - `Win32PrioritySeparation`, `SystemResponsiveness`, `PowerThrottlingOff`.
@@ -560,6 +677,39 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Background-T
 
 # Geri al
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Background-Telemetry-Cleanup.ps1 -Revert
+```
+
+### `CS2-Win10-Network-Tuning.ps1`
+
+**Uyguladıkları:**
+- Link power saving kapatma: EEE / Green Ethernet / Power Saving Mode / Selective Suspend / Ultra Low Power / Gigabit Lite.
+- Wake on Magic Packet / Wake on Pattern Match kapatma.
+- Adapter power management kapatma (uykuda link düşmesi).
+- Receive Side Scaling açık.
+- TCP autotuning normal, RSS enabled.
+- Opsiyonel: Interrupt Moderation off (latency), RSC off, LSO/checksum/USO off (sadece sorun ayıklama), DNS cache flush.
+- Rapor: adapter bilgisi, NIC istatistikleri (discard/error), `netsh int tcp show global`, tüm advanced property listesi.
+
+**Kapsamadıkları:**
+- Flow Control, checksum/LSO/RSC varsayılanlarını bozmaz (paket kaybı ve CPU yükü nedeniyle).
+- Speed & Duplex, Jumbo Frames, MTU, buffer derinliği.
+- Nagle, NetworkThrottlingIndex.
+- Router tarafı (bufferbloat / QoS) — RAPOR.md bölüm 8.5.
+
+**Kullanım:**
+
+```powershell
+# Dry run
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Network-Tuning.ps1
+
+# Uygula
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Network-Tuning.ps1 -Apply
+
+# Latency A/B testi
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Network-Tuning.ps1 -Apply -DisableInterruptModeration
+
+# Geri al
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Win10-Network-Tuning.ps1 -Revert
 ```
 
 ### `CS2-Desktop-OneClick.ps1`
