@@ -167,6 +167,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ## Sürüm
 
+- **v1.6.0** — 8K Hz mouse desteği: polling matrisi (ölçülecek), DPI saturation kuralı, `-PollingHz` ölçüm parametresi.
 - **v1.5.0** — Hedef profil tanımı (`docs/HEDEF-PROFIL.md`) ve hedef denetim aracı (`Get-Cs2TargetCheck.ps1`) eklendi.
 - **v1.4.0** — Ölçüm motoru (`Get-Cs2Benchmark.ps1`), GPU profili/power limit (`Get-Cs2GpuProfile.ps1`), ortak modül (`CS2Optimizer.psm1`), Pester testleri ve CI eklendi. Flow Control mantık hatası, powercfg alias hatası ve powercfg revert eksikliği düzeltildi.
 - **v1.3.0** — Ağ tuning scripti (düşük latency + paket kaybı yok), input lag ölçüm zinciri ve performans/latency opsiyonları eklendi.

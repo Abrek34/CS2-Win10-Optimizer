@@ -3,6 +3,20 @@
 Tüm önemli değişiklikler bu dosyada belgelenir.
 Format: [Semantic Versioning](https://semver.org/lang/tr/).
 
+## [v1.6.0] — 2026-11-10
+
+### Düzeltilen
+- **Mouse polling rate artık sabit kural değil.** "1000 Hz kullan" ifadesi kaldırıldı;
+  8K Hz destekleyen fareler için polling **ölçülecek** bir değişkendir.
+- `docs/HEDEF-PROFIL.md` bölüm 5 yeniden yazıldı: 360 Hz monitörde polling matrisi
+  (8000/4000/2000/1000/500 Hz), polling ≥ 2× refresh rate kuralı, DPI saturation
+  kuralı (8K için ≥1600 DPI) ve 8K'ye özel sistem ayarları.
+- `Get-Cs2Benchmark.ps1`: `-PollingHz` parametresi eklendi; rapora yazılır.
+- `Get-Cs2TargetCheck.ps1`: polling ve DPI saturation kontrolleri eklendi.
+
+### Eklenen
+- `SISTEM-OZELLIKLERI.md`: mouse donanımı (8K Hz polling) kayda gecirildi.
+
 ## [v1.5.0] — 2026-11-10
 
 ### Eklenen
