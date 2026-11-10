@@ -145,4 +145,18 @@ Bu dosya, ayarların “herkese uygun” genel bir tweak listesi olmadığını;
 
 ---
 
+---
+
+## 6. Sistem raporu üreteci (Get-Cs2SystemReport.ps1)
+
+`Get-Cs2SystemReport.ps1` read-only bir sistem envanteri üretir: Masaüstü'ne `CS2-SystemReport-<zaman damgası>.md` ve `.json` yazar. Aşağıdaki bu dosyadaki “Doldurulacak / bilinmiyor" yerlerini doğrulayabilir:
+
+- Monitör çözünürluğu ve Hz (fps cap, G-Sync kararı)
+- RAM modül düzeni (slot, kapasite, hız, yapılandırılmış hız, dual-rank ipucu)
+- NVIDIA sürücü sürümü ve VRAM (nvidia-smi veya WMI)
+- NIC modeli, link hızı, DNS ve gelişmiş NIC özellikleri
+- Güç planı, HAGS, GameDVR, PowerThrottlingOff gibi Windows ayarlarının gerçek durumu
+
+Raporu üretip `SISTEM-OZELLIKLERI.md`'deki tabloyu doldurduktan sonra bu dosya bir “referans durum" kaydı haline gelir; sonraki BIOS/Windows değişikliklerinde kıyas olarak kullanılabilir.
+
 > Bu dosya, `RAPOR.md` ile birlikte okunmalıdır. Ayarların gerekçeleri ve uygulama sırası raporda; donanım eşleşmesi burada.

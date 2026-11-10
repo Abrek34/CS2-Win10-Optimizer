@@ -15,6 +15,7 @@ Windows 10 + NVIDIA tarafında, **CS2 için oyun dışı** optimizasyonları bel
 | `CS2-Windows10-Optimize.ps1` | Ana script. Dry-run, yedek, restore point, `-Revert`. |
 | `CS2-Desktop-OneClick.ps1` | Aynı baseline'ın daha basit tek tık varyantı. |
 | `CS2-Optimize-Baslat.cmd` | PowerShell başlatıcı. |
+| `Get-Cs2SystemReport.ps1` | Sistemi envanterler ve Masaüstü'ne Markdown + JSON raporu yazar. Okunur (read-only); hiçbir ayarı değiştirmez. |
 | `RAPOR.md` | Tüm ayarlar, gerekçeler, uygulama sırası, ölçüm protokolü, yapma listesi. |
 | `SISTEM-OZELLIKLERI.md` | Ayarların hangi donanım özelliklerine göre seçildiği. |
 
@@ -42,6 +43,24 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Desktop-OneClick.p
 ```
 
 veya `CS2-Optimize-Baslat.cmd` dosyasına çift tıkla.
+
+---
+
+## Sistem raporu (envanter)
+
+`Get-Cs2SystemReport.ps1` sistemi envanterler ve Masaüstü'ne `CS2-SystemReport-<zaman damgası>.md` ve `.json` dosyaları yazar. **Hiçbir ayarı değiştirmez** (read-only).
+
+```powershell
+# Masaüstü'ne rapor üret
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2SystemReport.ps1
+
+# Farklı klasöre üret ve Markdown'u aç
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2SystemReport.ps1 -OutputDirectory "C:\Temp\Raporlar" -Open
+```
+
+Raporun içinde: işletim sistemi, CPU, RAM modülleri (slot, üretici, hız, yapılandırılmış hız), anakart/BIOS, GPU/VRAM (nvidia-smi ve WMI), monitör (çözünürlük/Hz), depolama, NIC (link hızı, IPv4, DNS, gelişmiş NIC özellikleri), güç planı, HAGS/GameDVR/power throttling gibi kayıt defteri ayarları, Defender exclusion'ları ve CS2 kurulum yolu.
+
+`RAPOR.md`'deki “bilinmiyor” yerlerini (monitör Hz, RAM düzeni, NVIDIA sürücü sürümü, ağ) doldurmak için bu raporu kullanabilirsin.
 
 ---
 
@@ -106,6 +125,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 ## Sürüm
 
 - **v1.0.0** — İlk sürüm: Windows baseline scriptleri, sistem özellikleri dosyası ve detaylı rapor.
+- **v1.1.0** (hazırlanıyor): `Get-Cs2SystemReport.ps1` sistem envanteri/rapor üreticisi eklenecek.
 
 ---
 

@@ -35,6 +35,21 @@
 | Ağ | **Doldurulacak:** Ethernet/Wi-Fi, router modeli |
 | CS2 yolu | Script otomatik buluyor; gerekirse `-Cs2Path` ile verilecek |
 
+### 1.1 Sistem envanter raporu (Get-Cs2SystemReport.ps1)
+
+`Get-Cs2SystemReport.ps1`, sistemin mevcut durumunu okur ve Masaüstü'ne `CS2-SystemReport-<zaman damgası>.md` ve `.json` dosyaları yazar. Hiçbir ayarı değiştirmez (read-only, yönetici gerekmez; bazı alanlar yetki yoksa `N/A` çıkarır).
+
+**Topladıkları:**
+- İşletim sistemi (sürüm, build, mimari, son önyükleme)
+- CPU (model, çekirdek/thread, saat), RAM (toplam, modül sayısı, slot/üretici/part no/hız/yapılandırılmış hız)
+- Anakart/BIOS sürümü, GPU/VRAM (nvidia-smi öncelikli, yoksa WMI), monitör (çözünürlük/Hz)
+- Depolama (disk, tip, bus, boyut, sağlık), NIC (adapter, link hızı, MAC, IPv4, gateway, DNS, gelişmiş NIC özellikleri)
+- Güç planı, HAGS, GameDVR, AppCapture, Auto Game Mode, Win32PrioritySeparation, SystemResponsiveness, NetworkThrottlingIndex, PowerThrottlingOff, DisablePagingExecutive, Fast Startup, HVCI, bekleyen reboot
+- Defender exclusion'ları (path/process)
+- CS2 kurulum yolu ve cs2.exe sürümü
+
+**Kullanım:** `RAPOR.md`'deki “Doldurulacak / bilinmiyor" yerlerini (monitör Hz, RAM düzeni, NVIDIA sürücü sürümü, ağ modeli) bu raporla doldurabilirsin. `SISTEM-OZELLIKLERI.md`'deki varsayımlarla karşılaştır.
+
 ### Mevcut çalışma dosyaları
 
 | Dosya | Ne yapar | Not |
@@ -42,6 +57,7 @@
 | `CS2-Windows10-Optimize.ps1` | Ana, parametreli script. Dry-run, yedek, restore point, `-Revert`. | Raporun “Windows” bölümünün büyük kısmını uygular. |
 | `CS2-Desktop-OneClick.ps1` | Aynı değişikliklerin daha basit, tek tık varyantı. | Ana script varken ikinci kez çalıştırmaya gerek yok. |
 | `CS2-Optimize-Baslat.cmd` | PowerShell başlatıcı. | Yönetici olarak çalıştırılmalı. |
+| `Get-Cs2SystemReport.ps1` | Sistemi envanterler ve Masaüstü'ne Markdown + JSON raporu yazar. | Okunur (read-only); “bilinmiyor” yerlerini doldurmak için kullan. |
 
 > İki script de **oyun içi ayarlara, BIOS'a ve NVIDIA Control Panel'e dokunmuyor.** Bu raporun NVIDIA/BIOS bölümleri ayrıca uygulanacak.
 
@@ -597,6 +613,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 6. HAGS açık/kapalı hangi değerde şu an?
 7. Wi-Fi mi Ethernet mi? Router modeli?
 8. Windows 11'e geçiş düşünülüyor mu?
+
+Bu soruların çoğuna `Get-Cs2SystemReport.ps1` ile üretilen rapor (monitör çözünürlük/Hz, RAM modül düzeni/hızı, NIC modeli, NVIDIA sürücü sürümü) yanıt verebilir; `SISTEM-OZELLIKLERI.md`'deki varsayımlarla karşılaştır.
 
 ### Karar günlüğü
 
