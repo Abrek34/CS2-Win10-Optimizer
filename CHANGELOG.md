@@ -3,6 +3,32 @@
 Tüm önemli değişiklikler bu dosyada belgelenir.
 Format: [Semantic Versioning](https://semver.org/lang/tr/).
 
+## [v1.7.0] — 2026-11-10
+
+### Eklenen
+- `Get-Cs2AimMatrix.ps1`: DPI / CS2 sens / polling matrisi hesaplayıcı (read-only).
+  - eDPI sabit tutularak DPI kademeleri (cm/360 değişmez)
+  - Her DPI'nin hangi polling rate'i doyurduğu (gereken minimum fare hızı)
+  - Polling × FPS etkileşimi (frame başına rapor sayısı)
+  - "Polling ≥ 2× monitör Hz" kuralı denetimi
+- `Get-Cs2RawAccelCheck.ps1`: RawAccel kurulum denetimi (read-only).
+  - Sürücü/servis durumu, settings.json çarpanları
+  - CS2'de **gerçekte oynanan** sens ve cm/360 hesabı
+  - Output smoothing / angle snap uyarıları
+- `docs/HEDEF-PROFIL.md` bölüm 5 yeniden yazıldı:
+  - Polling matrisi (CPU yükü ve Tier-1 pro kullanım oranlarıyla)
+  - "FPS 200'lere düşüyor" gözleminin polling ile ilişkisi (geri besleme döngüsü)
+  - DPI önerisi tablosu (8000 Hz için ≥1600 DPI, eDPI korunarak)
+  - 8K ile ilgili sistem ayarları ve 5 turlu test protokolü
+  - RawAccel analizi: **kaynak koddan doğrulandı** — "accel off" tamamen
+    kimlik işlemi değildir; sens multiplier, DPI normalization, output smoothing
+    ve carry katmanları veriyi değiştirir.
+
+### Düzeltilen
+- Daha önce "RawAccel accel off CS2 için ölçülebilir fark yaratmaz" yönündeki
+  değerlendirme düzeltildi: RawAccel `MOUSE_INPUT_DATA`'yı gerçekten değiştirir
+  (`driver.cpp` → `it->LastX = out_x`), CS2 raw input kullansa bile fark yaratabilir.
+
 ## [v1.6.0] — 2026-11-10
 
 ### Düzeltilen

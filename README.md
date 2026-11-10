@@ -19,6 +19,8 @@ Windows 10 + NVIDIA tarafında, **CS2 için oyun dışı** optimizasyonları bel
 | `CS2-Win10-WinUtil-Preferences.ps1` | WinUtil incelemesinden seçilen düşük riskli tercihleri uygular: activity history, location tracking, consumer features, delivery optimization, device companion apps, Razer/Logitech auto-install, Teredo, IPv4 preference, reserved storage, Explorer folder discovery, end task right click. Dry-run varsayılan; backup/revert destekler. |
 | `CS2-Win10-Background-Telemetry-Cleanup.ps1` | CS2 odaklı arka plan/telemetri temizliği: DiagTrack/dmwappushservice, CEIP/uyumluluk görevleri, AllowTelemetry, background apps, opsiyonel UWP kaldırma. Dry-run varsayılan; servis/görev/registry backup ve revert destekler. UWP kaldırma tam geri alınamaz. |
 | `CS2-Win10-Network-Tuning.ps1` | Düşük latency + paket kaybı yok: link power saving off, WoL off, adapter power management off, RSS on, TCP autotuning normal. Interrupt Moderation/RSC opsiyonel A/B. Flow Control **açık bırakılır** (paket kaybı koruması). Dry-run varsayılan; backup/revert destekler. |
+| `Get-Cs2AimMatrix.ps1` | DPI / CS2 sens / polling matrisi hesaplar: eDPI sabitken DPI kademeleri, cm/360, polling doygunluk hızları ve polling×FPS etkileşimi. Read-only. |
+| `Get-Cs2RawAccelCheck.ps1` | RawAccel kurulumunu denetler: sürücü durumu, settings.json çarpanları ve CS2'de **gerçekte oynadığınız** sens/cm-360 değerini hesaplar. Read-only. |
 | `Get-Cs2TargetCheck.ps1` | **Hedef profil denetimi.** "CS2 mükemmel sistem" tanımına göre sistemdeki her katmanı kontrol eder; OK/WARN/FAIL + gereken aksiyon raporu üretir. Read-only. |
 | `Get-Cs2Benchmark.ps1` | **Ölçüm motoru.** CapFrameX/PresentMon frame time, HWiNFO/nvidia-smi sensörleri, ağ jitter/paket kaybı ve NIC discard sayaçlarını toplar; `summary.md` + `summary.json` üretir. Hiçbir ayarı değiştirmez. |
 | `Get-Cs2GpuProfile.ps1` | RTX 3070 power limit yönetimi (nvidia-smi) + doğrulanmış NVIDIA Profile Inspector (.nip) profili üretimi. Revert destekler. |
@@ -40,6 +42,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2SystemReport.ps
 
 # 1b) Hedef profile kac uzakta? (read-only)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2TargetCheck.ps1
+
+# 1c) DPI/sens/polling matrisi (read-only)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2AimMatrix.ps1 -Dpi 400 -Sens 2.0
+
+# 1d) RawAccel carpanlari ve gercek etkin sens (read-only)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2RawAccelCheck.ps1 -Cs2Sens 2.0 -Dpi 400
 
 # 2) Baseline ölçümü (CS2 açıkken çalıştır)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Get-Cs2Benchmark.ps1 -Label baseline
@@ -167,6 +175,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CS2-Windows10-Optimize
 
 ## Sürüm
 
+- **v1.7.0** — DPI/sens/polling matrisi hesaplayıcısı, RawAccel çarpan denetim aracı ve 8K Hz polling analizi eklendi.
 - **v1.6.0** — 8K Hz mouse desteği: polling matrisi (ölçülecek), DPI saturation kuralı, `-PollingHz` ölçüm parametresi.
 - **v1.5.0** — Hedef profil tanımı (`docs/HEDEF-PROFIL.md`) ve hedef denetim aracı (`Get-Cs2TargetCheck.ps1`) eklendi.
 - **v1.4.0** — Ölçüm motoru (`Get-Cs2Benchmark.ps1`), GPU profili/power limit (`Get-Cs2GpuProfile.ps1`), ortak modül (`CS2Optimizer.psm1`), Pester testleri ve CI eklendi. Flow Control mantık hatası, powercfg alias hatası ve powercfg revert eksikliği düzeltildi.
